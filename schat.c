@@ -34,7 +34,8 @@ void *getAndWrite(ParametrosHilos *recibe) {
 			printf("Se identifico la secuencia: %s\n", c);
 			hayMensaje = 1;
 		} else {
-			fatalerror("can't read from socket");
+			close(sockfd);
+			break;
 		}
 	}
 }
@@ -46,8 +47,9 @@ void *readAndPrint(ParametrosHilos *recibe){
 		if (hayMensaje && hilosLector[id]){
 			printf("HayMensaje: %s.\n", c);
 			if (write(sockfd, c, CARACTERES) < 0){
-				fatalerror("can't write to socket");
-			}
+				close(sockfd);
+				break;
+			} 
 			hilosLector[id] = 0;
 		}
 	}
@@ -104,6 +106,7 @@ int main(int argc, char *argv []) {
 	for (i = 0; i < MAXHILOS; i++) {
 		hilosLector[i] = 1;
 	}
+	
 	for (i = 0; i < MAXHILOS; i++) {
 		/* Wait for a connection. */
 		clientaddrlength = sizeof(clientaddr);
