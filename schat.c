@@ -11,10 +11,17 @@
 const int MAXHILOS = 50;
 const int CARACTERES = 140;
 
+
+pthread_mutex_t count_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+
 int hilosLector[50]; /* arreglo para manejar las lecturas de los hilos.*/
+int hilosEnArreglo = 0;
 int hilosActivos = 0;
+int hilosHanLeido = 0;
 int hayMensaje = 0;
 char c[140];
+int limpiando = 0;
 
 typedef struct ParametrosHilos {
 	int id;
@@ -22,20 +29,25 @@ typedef struct ParametrosHilos {
 	int newsockfd;
 } ParametrosHilos;
 
+
 void *getAndWrite(ParametrosHilos *recibe) {
 	int i = 0;
 	int sockfd = recibe->newsockfd;
+	int id = recibe->id;
 	for (i=0; i<CARACTERES; i++){
 		c[i] = '\0';
 	}
-		
 	while(1){
-		if (read(sockfd, c, CARACTERES) > 0) {
-			printf("Se identifico la secuencia: %s\n", c);
-			hayMensaje = 1;
-		} else {
-			close(sockfd);
-			break;
+		if (hayMensaje == 0){
+			if (read(sockfd, c, CARACTERES) > 0) {
+				printf("Se identifico la secuencia: %s\n", c);
+				hayMensaje = 1;			
+			} else {
+				hilosLector[id] = 2;
+				hilosActivos--;
+				close(sockfd);
+				break;
+			}
 		}
 	}
 }
@@ -43,32 +55,50 @@ void *getAndWrite(ParametrosHilos *recibe) {
 void *readAndPrint(ParametrosHilos *recibe){
 	int sockfd = recibe->newsockfd;
 	int id = recibe->id;
+	int i;
 	while(1){
-		if (hayMensaje && hilosLector[id]){
-			printf("HayMensaje: %s.\n", c);
+		
+		if ((hayMensaje==1) && (hilosLector[id] == 1) && (limpiando == 0)){
+			printf("Guardias: HayMensaje %d hilosLector[%d] %d limpiando %d\n", hayMensaje, id, hilosLector[id], limpiando);
+			printf("HayMensaje: %s por el hilo %d.\n", c, id);
 			if (write(sockfd, c, CARACTERES) < 0){
-				close(sockfd);
-				break;
+				fatalerror("can't write to socket");
 			} 
 			hilosLector[id] = 0;
+			pthread_mutex_lock(&count_mutex);
+			hilosHanLeido++;
+			pthread_mutex_unlock(&count_mutex);
+			printf("HiloHanLeido %d por el hilo %d.\n", hilosHanLeido, id);
+			if (hilosHanLeido == hilosActivos){
+				hayMensaje = 0;
+				limpiando = 1;
+				for (i=0;i<hilosEnArreglo;i++){
+					if (hilosLector[i] == 0) {
+						hilosLector[i] = 1;
+					}	
+				}
+				hilosHanLeido = 0;
+				limpiando = 0;
+			
+			}
 		}
+		
+		if (hilosLector[id] == 2){
+			close(sockfd);
+			break;
+		}
+		
+		
 	}
 	
 }
 
-void echo(ParametrosHilos *recibe) {
+void *echo(ParametrosHilos *recibe) {
 	pthread_t hiloW, hiloR;
 	pthread_create(&hiloW, NULL, (void *)getAndWrite, recibe);
 	pthread_create(&hiloR, NULL, (void *)readAndPrint, recibe);
 	pthread_join(hiloW, NULL);
 	pthread_join(hiloR, NULL);
-}
-
-void *hola(ParametrosHilos *recibe) {
-	//int id = recibe->id;
-	//int sockfd = recibe->sockfd;
-	//int newsockfd = recibe->newsockfd;
-    echo(recibe);
 	return NULL;
 }
 
@@ -119,9 +149,10 @@ int main(int argc, char *argv []) {
 			fatalerror("accept failure");
 		}
 		envio.id = hilosActivos++;
+		hilosEnArreglo++;
 		envio.sockfd = sockfd;
 		envio.newsockfd = newsockfd;
-		if ((pthread_create(&hilos[i], NULL, (void *)hola, (void *)&envio)) != 0){
+		if ((pthread_create(&hilos[i], NULL, (void *)echo, (void *)&envio)) != 0){
 			fatalerror("Error catastrofico creando hilo :OOO");
 		}
 	}
