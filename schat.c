@@ -7,14 +7,14 @@
 #include <pthread.h>
 #include "errors.h"
 
-#define PORT 25503
 const int MAXHILOS = 50;
 const int CARACTERES = 140;
 
-
 pthread_mutex_t count_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-
+char *salas[50];
+int salasAgregadas = 0;
+int puerto;
 int hilosLector[50]; /* arreglo para manejar las lecturas de los hilos.*/
 int hilosEnArreglo = 0;
 int hilosActivos = 0;
@@ -56,43 +56,43 @@ void *getAndWrite(ParametrosHilos *recibe) {
 }
 
 void *readAndPrint(ParametrosHilos *recibe){
-        int sockfd = recibe->newsockfd;
-        int id = recibe->id;
-        int i;
-        while(1){
+	int sockfd = recibe->newsockfd;
+	int id = recibe->id;
+	int i;
+	while(1){
                 
-                if ((hayMensaje==1) && (hilosLector[id] == 1) && (limpiando == 0)){
-                        printf("Guardias: HayMensaje %d hilosLector[%d] %d limpiando %d\n", hayMensaje, id, hilosLector[id], limpiando);
-                        printf("HayMensaje: %s por el hilo %d.\n", c, id);
-                        if (write(sockfd, c, CARACTERES) < 0){
-                                fatalerror("can't write to socket");
-                        } 
-                        hilosLector[id] = 0;
-                        pthread_mutex_lock(&count_mutex);
-                        hilosHanLeido++;
-                        pthread_mutex_unlock(&count_mutex);
-                        printf("HiloHanLeido %d por el hilo %d.\n", hilosHanLeido, id);
-                        if (hilosHanLeido == hilosActivos){
-                                hayMensaje = 0;
-                                limpiando = 1;
-                                for (i=0;i<hilosEnArreglo;i++){
-                                        if (hilosLector[i] == 0) {
-                                                hilosLector[i] = 1;
-                                        }        
-                                }
-                                hilosHanLeido = 0;
-                                limpiando = 0;
-                        
-                        }
-                }
+		if ((hayMensaje==1) && (hilosLector[id] == 1) && (limpiando == 0)){
+			printf("Guardias: HayMensaje %d hilosLector[%d] %d limpiando %d\n", 
+				   hayMensaje, id, hilosLector[id], limpiando);
+			printf("HayMensaje: %s por el hilo %d.\n", c, id);
+			if (write(sockfd, c, CARACTERES) < 0){
+				fatalerror("can't write to socket");
+			} 
+			hilosLector[id] = 0;
+			pthread_mutex_lock(&count_mutex);
+			hilosHanLeido++;
+			pthread_mutex_unlock(&count_mutex);
+			printf("HiloHanLeido %d por el hilo %d.\n", hilosHanLeido, id);
+			if (hilosHanLeido == hilosActivos){
+				hayMensaje = 0;
+				limpiando = 1;
+				for (i=0;i<hilosEnArreglo;i++){
+						if (hilosLector[i] == 0) {
+								hilosLector[i] = 1;
+						}        
+				}
+				hilosHanLeido = 0;
+				limpiando = 0;
+			}
+		}
+		
+		if (hilosLector[id] == 2){
+			close(sockfd);
+			break;
+		}
                 
-                if (hilosLector[id] == 2){
-						close(sockfd);
-                        break;
-                }
                 
-                
-        }
+	}
         
 }
 
@@ -117,6 +117,48 @@ int main(int argc, char *argv []) {
 	/* Recuerda el nombre del archivo para mensajes de error. */
 	programname = argv[0];
 	
+	printf("Cantidad de argumentos: %d\n", argc);
+	switch(argc) {
+		case 1:
+			/* Valores predeterminados. */
+			puerto = 25503;
+			salas[0] = "actual";
+			salasAgregadas++;
+			break;
+		case 3:
+			if (argv[1] = "-p"){
+				puerto = atoi(argv[2]);	
+			} else if (argv[1] = "-s"){
+				salas[0] = argv[2];
+				salasAgregadas++;
+			} else{
+				printf("Forma correcta de invocacion del programa: ");
+			}
+			break;
+		case 5:
+			if ((argv[1] == "-p" || argv[3] == "-p") && (argv[1] == "-s" || argv[3] == "-s")) {
+				if (argv[1] = "-p"){
+					puerto = atoi(argv[2]);	
+				} else if (argv[1] = "-s"){
+					salas[0] = argv[2];
+					salasAgregadas++;
+				}
+				
+				if (argv[3] = "-p"){
+					puerto = atoi(argv[4]);	
+				} else if (argv[3] = "-s"){
+					salas[0] = argv[4];
+					salasAgregadas++;
+				}
+			} else {
+				printf("Forma correcta de invocacion del programa: ");
+			}
+			break;
+		default:
+			printf("Forma correcta de invocacion del programa: ");
+			break;
+	}
+	
 	/* Abre el socket TCP. */
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockfd < 0){
@@ -126,7 +168,7 @@ int main(int argc, char *argv []) {
 	bzero(&serveraddr, sizeof(serveraddr));
 	serveraddr.sin_family = AF_INET;
 	serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	serveraddr.sin_port = htons(PORT);
+	serveraddr.sin_port = htons(puerto);
 	if (bind(sockfd, (struct sockaddr *) &serveraddr,
 			sizeof(serveraddr)) != 0){
 		fatalerror("can't bind to socket");
