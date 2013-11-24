@@ -40,13 +40,14 @@ void *getAndWrite(int *sockfd) {
 }
 
 void *readAndPrint(int *sockfd){
+	int *sfd = sockfd;
 	char recibido[140];
 	int i;
 	while(1){
 		for (i=0; i<140; i++){
 			recibido[i] = '\0';
 		}
-		if (read(*sockfd, recibido, 140) < 0) {
+		if (read(*sfd, recibido, 140) < 0) {
 			fatalerror("can't read from socket");
 		}
 		printf("Recibido desde el servidor: %s\n", recibido);
