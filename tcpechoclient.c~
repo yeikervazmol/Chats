@@ -127,7 +127,7 @@ main(int argc, char *argv[]) {
   if (sockfd < 0)
     fatalerror("can't open socket");
 
-  /* Connect toserveraddr the server. */
+  /* Connect to the server. */
   if (connect(sockfd, (struct sockaddr *) &serveraddr,
               sizeof(serveraddr)) < 0)
     fatalerror("can't connect to server");
