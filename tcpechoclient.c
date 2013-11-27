@@ -7,7 +7,8 @@ and sends them to standard output.
 
 Copyright (C) 1995 by Fred Sullivan      All Rights Reserved
 ************************************************************/
-
+#include <ctype.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -16,8 +17,6 @@ Copyright (C) 1995 by Fred Sullivan      All Rights Reserved
 #include <strings.h>
 #include "errors.h"
 #include <pthread.h>
-
-#define PORT 25503
 
 void *getAndWrite(int *sockfd) {
 	char c;
@@ -66,21 +65,40 @@ main(int argc, char *argv[]) {
   int sockfd;
   struct sockaddr_in serveraddr;
   char *server;
-
+  server = "127.0.0.1";
+  int puerto = 25504;
+  char *nombre = "anonimo";
+  char *archivo;
+  char key;
+  
   /* Remember the program name for error messages. */
   programname = argv[0];
 
-  /* Who's the server? */
-  if (argc == 2)
-    server = argv[1];
-  else
-    server = "127.0.0.1";
-
+	while ((key = getopt(argc, argv, "h:p:n:a:")) != -1) {
+		switch (key) {
+			case 'p':
+				puerto = atoi(optarg);
+				break;
+			case 'n':
+				nombre = optarg;
+				break;
+			case 'h':
+				server = optarg;
+				break;
+			case 'a':
+				archivo = optarg;
+				break;	
+			default:
+				printf("Forma correcta de invocacion del programa: cchat [-h <host>] [-p <puerto>] [-n <nombre>][-a <archivo>]");
+				break;
+			}
+	}
+ 
   /* Get the address of the server. */
   bzero(&serveraddr, sizeof(serveraddr));
   serveraddr.sin_family = AF_INET;
   serveraddr.sin_addr.s_addr = inet_addr(server);
-  serveraddr.sin_port = htons(PORT);
+  serveraddr.sin_port = htons(puerto);
 
   /* Open a socket. */
   sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -98,3 +116,4 @@ main(int argc, char *argv[]) {
 
   exit(EXIT_SUCCESS);
 }
+

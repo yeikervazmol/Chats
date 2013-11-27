@@ -1,3 +1,5 @@
+#include <ctype.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -7,13 +9,10 @@
 #include <pthread.h>
 #include "errors.h"
 
-#define PORT 25503
 const int MAXHILOS = 50;
 const int CARACTERES = 140;
 
-
-pthread_mutex_t count_mutex = PTHREAD_MUTEX_INITIALIZER;
-
+pthread_mutex_t count_mutex;
 
 int hilosLector[50]; /* arreglo para manejar las lecturas de los hilos.*/
 int hilosEnArreglo = 0;
@@ -22,37 +21,41 @@ int hilosHanLeido = 0;
 int hayMensaje = 0;
 char c[140];
 int limpiando = 0;
+int puerto = 25504;
+char *salas[100];
 
 typedef struct ParametrosHilos {
-        int id;
-        int sockfd;
-        int newsockfd;
+	int id;
+	int sockfd;
+	int newsockfd;
 } ParametrosHilos;
 
 
 void *getAndWrite(ParametrosHilos *recibe) {
-        int i = 0;
-        int sockfd = recibe->newsockfd;
-        int id = recibe->id;
-        for (i=0; i<CARACTERES; i++){
-                c[i] = '\0';
-        }
-        if (hilosLector[id] == 2){
-                hilosLector[id] = 1;
-        }
-        while(1){
-                if (hayMensaje == 0){
-                        if (read(sockfd, c, CARACTERES) > 0) {
-                                printf("Se identifico la secuencia: %s en el hilo %d\n", c, id);
-                                hayMensaje = 1;                        
-                        } else {
-                                hilosLector[id] = 2;
-                                hilosActivos--;
-                                close(sockfd);
-                                break;
-                        }
-                }
-        }
+	int i = 0;
+	int sockfd = recibe->newsockfd;
+	int id = recibe->id;
+	for (i=0; i<CARACTERES; i++){
+		c[i] = '\0';
+	}
+	if (hilosLector[id] == 2){
+		hilosLector[id] = 1;
+	}
+	while(1){
+		if (hayMensaje == 0){
+			if (read(sockfd, c, CARACTERES) > 0) {
+				printf("Se identifico la secuencia: %s en el hilo %d\n", c, id);
+				pthread_mutex_lock(&count_mutex);
+				hayMensaje = 1;	
+				pthread_mutex_unlock(&count_mutex);
+			} else {
+				hilosLector[id] = 2;
+				hilosActivos--;
+				close(sockfd);
+				break;
+			}
+		}
+	}
 }
 
 void *readAndPrint(ParametrosHilos *recibe){
@@ -60,34 +63,36 @@ void *readAndPrint(ParametrosHilos *recibe){
         int id = recibe->id;
         int i;
         while(1){
-                
-                if ((hayMensaje==1) && (hilosLector[id] == 1) && (limpiando == 0)){
-                        printf("Guardias: HayMensaje %d hilosLector[%d] %d limpiando %d\n", hayMensaje, id, hilosLector[id], limpiando);
-                        printf("HayMensaje: %s por el hilo %d.\n", c, id);
-                        if (write(sockfd, c, CARACTERES) < 0){
-                                fatalerror("can't write to socket");
-                        } 
-                        hilosLector[id] = 0;
-                        pthread_mutex_lock(&count_mutex);
-                        hilosHanLeido++;
-                        pthread_mutex_unlock(&count_mutex);
-                        printf("HiloHanLeido %d por el hilo %d.\n", hilosHanLeido, id);
-                        if (hilosHanLeido == hilosActivos){
-                                hayMensaje = 0;
-                                limpiando = 1;
-                                for (i=0;i<hilosEnArreglo;i++){
-                                        if (hilosLector[i] == 0) {
-                                                hilosLector[i] = 1;
-                                        }        
-                                }
-                                hilosHanLeido = 0;
-                                limpiando = 0;
-                        
-                        }
+				if (hayMensaje == 1) {
+					if ((hayMensaje==1) && (hilosLector[id] == 1) && (limpiando == 0)){
+						printf("Guardias: HayMensaje %d hilosLector[%d] %d limpiando %d\n", hayMensaje, id, hilosLector[id], limpiando);
+						printf("Guardia HayMensaje == 1: %d\n", (hayMensaje==1));
+						printf("HayMensaje: %s por el hilo %d.\n", c, id);
+						if (write(sockfd, c, CARACTERES) < 0){
+							fatalerror("can't write to socket");
+						} 
+						pthread_mutex_lock(&count_mutex);
+						hilosLector[id] = 0;
+						hilosHanLeido++;
+						printf("HiloHanLeido %d por el hilo %d.\n", hilosHanLeido, id);
+						if (hilosHanLeido == hilosActivos){
+							hayMensaje = 0;
+							limpiando = 1;
+							for (i=0;i<hilosEnArreglo;i++){
+									if (hilosLector[i] == 0) {
+											hilosLector[i] = 1;
+									}        
+							}
+							hilosHanLeido = 0;
+							limpiando = 0;
+							
+						}
+						pthread_mutex_unlock(&count_mutex);
+					}
                 }
                 
                 if (hilosLector[id] == 2){
-                                                close(sockfd);
+						close(sockfd);
                         break;
                 }
                 
@@ -97,75 +102,91 @@ void *readAndPrint(ParametrosHilos *recibe){
 }
 
 void *echo(ParametrosHilos *recibe) {
-        pthread_t hiloW, hiloR;
-        pthread_create(&hiloW, NULL, (void *)getAndWrite, recibe);
-        pthread_create(&hiloR, NULL, (void *)readAndPrint, recibe);
-        pthread_join(hiloW, NULL);
-        pthread_join(hiloR, NULL);
-        return NULL;
+	pthread_t hiloW, hiloR;
+	pthread_create(&hiloW, NULL, (void *)getAndWrite, recibe);
+	pthread_create(&hiloR, NULL, (void *)readAndPrint, recibe);
+	pthread_join(hiloW, NULL);
+	pthread_join(hiloR, NULL);
+	return NULL;
 }
 
 int main(int argc, char *argv []) {
 
-        int sockfd, newsockfd;
-        struct sockaddr_in clientaddr, serveraddr;
-        int clientaddrlength;
-        pthread_t hilos[MAXHILOS]; /* arreglo que contendra todos los hilos.*/
-        int i = 0;
-        ParametrosHilos envio;
+	int sockfd, newsockfd;
+	struct sockaddr_in clientaddr, serveraddr;
+	int clientaddrlength;
+	pthread_t hilos[MAXHILOS]; /* arreglo que contendra todos los hilos.*/
+	int i = 0;
+	ParametrosHilos envio;
+	pthread_mutex_init(&count_mutex, NULL);
+	salas[0] = "actual";
+	char key;
 
-        /* Recuerda el nombre del archivo para mensajes de error. */
-        programname = argv[0];
-        
-        /* Abre el socket TCP. */
-        sockfd = socket(AF_INET, SOCK_STREAM, 0);
-        if (sockfd < 0){
-                fatalerror("No abre el socket D:");
-        }
-        /* Bind the address to the socket. */
-        bzero(&serveraddr, sizeof(serveraddr));
-        serveraddr.sin_family = AF_INET;
-        serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
-        serveraddr.sin_port = htons(PORT);
-        if (bind(sockfd, (struct sockaddr *) &serveraddr,
-                        sizeof(serveraddr)) != 0){
-                fatalerror("can't bind to socket");
-        }
-        
-        if (listen(sockfd, MAXHILOS) < 0){
-                fatalerror("can't listen");
-        }
-        
-        for (i = 0; i < MAXHILOS; i++) {
-                hilosLector[i] = 1;
-        }
-        
-        for (i = 0; i < MAXHILOS; i++) {
-                /* Wait for a connection. */
-                clientaddrlength = sizeof(clientaddr);
-                printf("Esperando nuevo cliente\n");
-                newsockfd = accept(sockfd, 
-                                                (struct sockaddr *) &clientaddr,
-                                                &clientaddrlength);
-                printf("Cliente Nuevo\n");
-                if (newsockfd < 0){
-                        fatalerror("accept failure");
-                }
-                envio.id = hilosEnArreglo++;
-                printf("hilosActivos %d\n",hilosEnArreglo);
-                hilosActivos++;
-                envio.sockfd = sockfd;
-                envio.newsockfd = newsockfd;
-                if ((pthread_create(&hilos[i], NULL, (void *)echo, (void *)&envio)) != 0){
-                        fatalerror("Error catastrofico creando hilo :OOO");
-                }
-        }
-        
-        
-        for (i = 0; i < MAXHILOS; i++) {
-                pthread_join(hilos[i], NULL);
-        }
-        
-        
-        printf("\nFin\n");
+	/* Recuerda el nombre del archivo para mensajes de error. */
+	programname = argv[0];
+	
+	while ((key = getopt(argc, argv, "p:s:")) != -1) {
+		switch (key) {
+			case 'p':
+				puerto = atoi(optarg);
+				break;
+			case 's':
+				salas[0] = optarg;
+				break;
+			default:
+				printf("Forma correcta de invocacion del programa: schat [-p <puerto>] [-s <sala>]");
+				break;
+			}
+	}
+	/* Abre el socket TCP. */
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	if (sockfd < 0){
+		fatalerror("No abre el socket D:");
+	}
+	/* Bind the address to the socket. */
+	bzero(&serveraddr, sizeof(serveraddr));
+	serveraddr.sin_family = AF_INET;
+	serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	serveraddr.sin_port = htons(puerto);
+	if (bind(sockfd, (struct sockaddr *) &serveraddr,
+			sizeof(serveraddr)) != 0){
+		fatalerror("can't bind to socket");
+	}
+	
+	if (listen(sockfd, MAXHILOS) < 0){
+		fatalerror("can't listen");
+	}
+	
+	for (i = 0; i < MAXHILOS; i++) {
+		hilosLector[i] = 1;
+	}
+	
+	for (i = 0; i < MAXHILOS; i++) {
+		/* Wait for a connection. */
+		clientaddrlength = sizeof(clientaddr);
+		printf("Esperando nuevo cliente\n");
+		newsockfd = accept(sockfd, 
+						(struct sockaddr *) &clientaddr,
+						&clientaddrlength);
+		printf("Cliente Nuevo\n");
+		if (newsockfd < 0){
+			fatalerror("accept failure");
+		}
+		envio.id = hilosEnArreglo++;
+		printf("hilosActivos %d\n",hilosEnArreglo);
+		hilosActivos++;
+		envio.sockfd = sockfd;
+		envio.newsockfd = newsockfd;
+		if ((pthread_create(&hilos[i], NULL, (void *)echo, (void *)&envio)) != 0){
+			fatalerror("Error catastrofico creando hilo :OOO");
+		}
+	}
+	
+	
+	for (i = 0; i < MAXHILOS; i++) {
+		pthread_join(hilos[i], NULL);
+	}
+	
+	
+	printf("\nFin\n");
 }
