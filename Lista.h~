@@ -9,22 +9,27 @@
 * servidor del chat.
 */
 
+#include <pthread.h>
 
-struct caja {
+typedef struct Item {
 	
 	char *name;
 	int sockfd;
-	struct caja *listaInterna;
-	struct caja *ApSig;
-	struct caja *ApAnt;
+	struct Lista *listaInterna;
+	struct Item *ApSig;
+	
+} Item;
 
-};
+typedef struct Lista {
+	
+	pthread_mutex_t bodyguard;
+	Item *primero;
+	
+} Lista;
 
-typedef struct caja Lista;
 
-
-extern Lista *buscar(Lista *cabeza, char *tesoro);
-extern Lista *insertar(Lista *cabeza, char *name, int sockfd);
-extern Lista *eliminar(Lista *cabeza,  Lista *sentenciado);
-extern void *liberarCompleto(Lista *Completa);
-extern char *Listar(Lista *cabeza);
+Item *buscar(Lista *cabeza, char *tesoro);
+void insertar(Lista *cabeza, char *name, int sockfd);
+void eliminar(Lista *cabeza,  Item *sentenciado);
+void liberarCompleto(Lista *Completa);
+char *listar(Lista *cabeza);

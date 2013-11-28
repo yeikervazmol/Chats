@@ -109,16 +109,17 @@ int main(int argc, char *argv[]) {
   serveraddr.sin_addr.s_addr = inet_addr(server);
   serveraddr.sin_port = htons(puerto);
 
-  /* Open a socket. */
+  /* Abriendo el socket. */
   sockfd = socket(AF_INET, SOCK_STREAM, 0);
   if (sockfd < 0)
     fatalerror("can't open socket");
 
-  /* Connect toserveraddr the server. */
+  /* Conectarnos al servidor */
   if (connect(sockfd, (struct sockaddr *) &serveraddr,
               sizeof(serveraddr)) < 0)
     fatalerror("can't connect to server");
 
+	/* Enviamos el nombre del cliente al socket */
 	if (write(sockfd, nombre, BUFFERTAM) < 0){
 		fatalerror("can't write to socket");
 	}
@@ -126,13 +127,15 @@ int main(int argc, char *argv[]) {
 	if (read(sockfd, &identidadValida, sizeof(int)) < 0) {
 		fatalerror("can't read from socket");
 	}
+	printf("Numero recibido desde el servidor: %d", identidadValida);
 	
 	/* identidadValida vale 1 si el nombre de usuario de valido
 	 y 0 cuando el nombre de usuario ya esta siendo utilizado.*/
 	if (identidadValida == 0){
 		int j = BUFFERTAM;
 		while(!identidadValida){
-			
+			printf("%s es un usuario existente,"
+				"por favor seleccione otro nombre de usuario", nombre);
 			getline(&nombre, &j, stdin);
 			if (write(sockfd, nombre, BUFFERTAM) < 0){
 				fatalerror("can't write to socket");
@@ -141,7 +144,6 @@ int main(int argc, char *argv[]) {
 			if (read(sockfd, &identidadValida, sizeof(int)) < 0) {
 				fatalerror("can't read from socket");
 			}
-			printf("Numero recibido desde el servidor: %d", identidadValida);
 		}
 	}
 		

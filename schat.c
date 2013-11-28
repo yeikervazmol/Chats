@@ -10,6 +10,8 @@
 */
 
 #include "Servidor.h"
+#include "Lista.h"
+
 #define BUFFERTAM 1024
 
 const int MAXHILOS = 50;
@@ -27,6 +29,7 @@ char c[140];
 int limpiando = 0;
 int puerto = 25504;
 char *salas[100];
+Lista *clientes;
 
 void *getAndWrite(ParametrosHilos *recibe) {
 	int i = 0;
@@ -120,9 +123,18 @@ int main(int argc, char *argv []) {
 	pthread_mutex_init(&_mutex, NULL);
 	salas[0] = "actual";
 	char key;
-	char nombreCliente[1024];
-	
-
+	char *nombreCliente = calloc(1024,sizeof(char));
+	int nombreValido = 0;
+	clientes = calloc(1, sizeof(Lista));
+	if (clientes == NULL){
+		printf("Error");
+		exit(1);
+	}
+	if (pthread_mutex_init(&(clientes->bodyguard), NULL) != 0)
+	{
+		free(clientes);
+		return 0;
+	}
 	/* Recuerda el nombre del archivo para mensajes de error. */
 	programname = argv[0];
 	
@@ -177,11 +189,13 @@ int main(int argc, char *argv []) {
 			fatalerror("accept failure");
 		}
 		
-		if (read(newsockfd, &nombreCliente, BUFFERTAM) > 0) {
-			printf("Nombre nuevo cliente %s\n", nombreCliente);
+		if (read(newsockfd, nombreCliente, BUFFERTAM) < 0) {
+			fatalerror("can't listen to socket");
 		}
-		int j = i+4;
-		if (write(newsockfd, &j, sizeof(int)) < 0){
+		printf("insertar\n");
+		nombreValido = insertar(clientes, nombreCliente,newsockfd);
+		printf("insertado\n");
+		if (write(newsockfd, &nombreValido, sizeof(int)) < 0){
 			fatalerror("can't write to socket");
 		}
 		
