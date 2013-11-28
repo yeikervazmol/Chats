@@ -14,6 +14,9 @@ tcpechoclient : tcpechoclient.c errors.o
 	
 schat : schat.c errors.o
 	$(CC) $(CFLAGS) -pthread -o schat schat.c errors.o $(LIBS)
+	
+lista : 
+	gcc Lista.c -Wall -pthread -o Lista
 
 clean:
 	rm *.o schat tcpechoclient
