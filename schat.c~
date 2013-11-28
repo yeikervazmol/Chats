@@ -9,7 +9,8 @@
 * servidor del chat.
 */
 
-#include "Servidor.h" 
+#include "Servidor.h"
+#define BUFFERTAM 1024
 
 const int MAXHILOS = 50;
 const int CARACTERES = 140;
@@ -119,6 +120,8 @@ int main(int argc, char *argv []) {
 	pthread_mutex_init(&_mutex, NULL);
 	salas[0] = "actual";
 	char key;
+	char nombreCliente[1024];
+	
 
 	/* Recuerda el nombre del archivo para mensajes de error. */
 	programname = argv[0];
@@ -173,6 +176,16 @@ int main(int argc, char *argv []) {
 		if (newsockfd < 0){
 			fatalerror("accept failure");
 		}
+		
+		if (read(newsockfd, &nombreCliente, BUFFERTAM) > 0) {
+			printf("Nombre nuevo cliente %s\n", nombreCliente);
+		}
+		
+		if (write(newsockfd, &i, sizeof(int)) < 0){
+			fatalerror("can't write to socket");
+		}
+		
+		
 		envio.id = hilosEnArreglo++;
 		printf("hilosActivos %d\n",hilosEnArreglo);
 		hilosActivos++;
