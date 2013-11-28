@@ -102,8 +102,20 @@ void *readAndPrint(ParametrosHilos *recibe){
         
 }
 
-
 void *echo(ParametrosHilos *recibe) {
+	int nombreValido = 0;
+	char *nombreCliente = calloc(BUFFERTAM, sizeof(char));
+	
+	while(nombreValido == 0	){
+		if (read(recibe->newsockfd, nombreCliente, BUFFERTAM) < 0) {
+			fatalerror("can't listen to socket");
+		}
+		nombreValido = insertar(clientes, nombreCliente,recibe->newsockfd);
+		
+		if (write(recibe->newsockfd, &nombreValido, sizeof(int)) < 0){
+			fatalerror("can't write to socket");
+		}
+	}
 	pthread_t hiloW, hiloR;
 	pthread_create(&hiloW, NULL, (void *)getAndWrite, recibe);
 	pthread_create(&hiloR, NULL, (void *)readAndPrint, recibe);
@@ -111,6 +123,8 @@ void *echo(ParametrosHilos *recibe) {
 	pthread_join(hiloR, NULL);
 	return NULL;
 }
+
+
 
 int main(int argc, char *argv []) {	
 	int sockfd, newsockfd;
@@ -123,8 +137,7 @@ int main(int argc, char *argv []) {
 	pthread_mutex_init(&_mutex, NULL);
 	salas[0] = "actual";
 	char key;
-	char *nombreCliente = calloc(1024,sizeof(char));
-	int nombreValido = 0;
+	
 	clientes = calloc(1, sizeof(Lista));
 	if (clientes == NULL){
 		printf("Error");
@@ -185,25 +198,14 @@ int main(int argc, char *argv []) {
 						(struct sockaddr *) &clientaddr,
 						&clientaddrlength);
 		printf("Cliente Nuevo\n");
+		
 		if (newsockfd < 0){
 			fatalerror("accept failure");
 		}
 		
-		if (read(newsockfd, nombreCliente, BUFFERTAM) < 0) {
-			fatalerror("can't listen to socket");
-		}
-		printf("insertar\n");
-		nombreValido = insertar(clientes, nombreCliente,newsockfd);
-		printf("insertado\n");
-		if (write(newsockfd, &nombreValido, sizeof(int)) < 0){
-			fatalerror("can't write to socket");
-		}
-		
-		
 		envio.id = hilosEnArreglo++;
 		printf("hilosActivos %d\n",hilosEnArreglo);
 		hilosActivos++;
-		envio.sockfd = sockfd;
 		envio.newsockfd = newsockfd;
 		if ((pthread_create(&hilos[i], NULL, (void *)echo, (void *)&envio)) != 0){
 			fatalerror("Error catastrofico creando hilo :OOO");

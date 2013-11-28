@@ -17,13 +17,13 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <strings.h>
+#include <string.h>
 #include <pthread.h>
 #include "errors.h"
 
 /*Estructuras utilizadas */
 typedef struct ParametrosHilos {
 	int id;
-	int sockfd;
 	int newsockfd;
 } ParametrosHilos;
 

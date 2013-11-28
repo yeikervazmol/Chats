@@ -29,7 +29,7 @@ typedef struct Lista {
 
 
 Item *buscar(Lista *cabeza, char *tesoro);
-void insertar(Lista *cabeza, char *name, int sockfd);
+int insertar(Lista *cabeza, char *name, int sockfd);
 void eliminar(Lista *cabeza,  Item *sentenciado);
 void liberarCompleto(Lista *Completa);
 char *listar(Lista *cabeza);

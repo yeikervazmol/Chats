@@ -48,28 +48,19 @@ int insertar(Lista *lista, char *name, int sockfd) {
 		if (cabeza == NULL){
 			//La lista no tiene elementos.
 			cabeza = calloc(1, sizeof(Item));
-			printf("Estoy haciendo calloc \n");
 			if(cabeza != NULL){
-				printf("Hice calloc y tengo memoria\n");
-				cabeza->name = (char *) calloc(strlen(name)+1, sizeof(char));
-				printf("Hago calloc del nombre...");
+				cabeza->name = calloc(strlen(name)+1, sizeof(char));
 				if (cabeza->name != NULL){
-					printf("Hice calloc y voy a insertar");
 					lista->primero = cabeza;
-					printf("Lista->primero = cabeza \n");
 					strcpy(cabeza->name,name);
-					printf("Lista->primero = cabeza1\n");
 					cabeza->sockfd = sockfd;
-					printf("Lista->primero = cabeza2 \n");
 					cabeza->listaInterna = NULL;
-					printf("Lista->primero = cabeza 3\n");
 					cabeza->ApSig = NULL;
-					printf("Lista->primero = cabeza 4\n");
 				} else {
-					printf("Hice calloc y voy a hacer free\n");
 					free(cabeza);
 					lista->primero = NULL;
-					return 0;
+					printf("No se ha podido reservar memoria mediante calloc.");
+					exit(1);
 				}
 				
 			}
@@ -89,16 +80,18 @@ int insertar(Lista *lista, char *name, int sockfd) {
 					lista->primero = nuevo;
 					
 				} else {
+					free(nuevo);
 					printf("No se ha podido reservar memoria mediante calloc.");
 					exit(1);
 				}
 			} else {
+				pthread_mutex_unlock(&(lista->bodyguard));	
 				return 0;
 			}
 				
 		}
-		return 1;
 		pthread_mutex_unlock(&(lista->bodyguard));	
+		return 1;
 	}
 }
 

@@ -65,17 +65,20 @@ void copy(int sockfd) {
 }
 
 int main(int argc, char *argv[]) {
-  int sockfd;
-  int identidadValida;
-  struct sockaddr_in serveraddr;
-  char *server;
-  server = "127.0.0.1";
-  int puerto = 25504;
-  char *nombre = "anonimo";
-  char *archivo = NULL;
-  char key;
-  FILE *fp = NULL;
-  char line[BUFFERTAM];
+	int sockfd;
+	int identidadValida = 0;
+	struct sockaddr_in serveraddr;
+	char *server;
+	server = "127.0.0.1";
+	int puerto = 25504;
+	char *nombre = calloc(BUFFERTAM+1, sizeof(char));
+	char *archivo = NULL;
+	char key;
+	FILE *fp = NULL;
+	char line[BUFFERTAM];
+	int j = BUFFERTAM;
+	int lenNombre;
+	
   
   /* Remember the program name for error messages. */
   programname = argv[0];
@@ -103,40 +106,48 @@ int main(int argc, char *argv[]) {
 			}
 	}
 
-  /* Get the address of the server. */
-  bzero(&serveraddr, sizeof(serveraddr));
-  serveraddr.sin_family = AF_INET;
-  serveraddr.sin_addr.s_addr = inet_addr(server);
-  serveraddr.sin_port = htons(puerto);
+	/* Get the address of the server. */
+	bzero(&serveraddr, sizeof(serveraddr));
+	serveraddr.sin_family = AF_INET;
+	serveraddr.sin_addr.s_addr = inet_addr(server);
+	serveraddr.sin_port = htons(puerto);
 
-  /* Abriendo el socket. */
-  sockfd = socket(AF_INET, SOCK_STREAM, 0);
-  if (sockfd < 0)
-    fatalerror("can't open socket");
+	/* Abriendo el socket. */
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	if (sockfd < 0)
+		fatalerror("can't open socket");
 
-  /* Conectarnos al servidor */
-  if (connect(sockfd, (struct sockaddr *) &serveraddr,
-              sizeof(serveraddr)) < 0)
-    fatalerror("can't connect to server");
-
+	/* Conectarnos al servidor */
+	if (connect(sockfd, (struct sockaddr *) &serveraddr,
+				sizeof(serveraddr)) < 0)
+		fatalerror("can't connect to server");
+	
 	/* Enviamos el nombre del cliente al socket */
+	while( strcmp(nombre, "") == 0 ){
+		printf("Introduzca su alias en el chat: ");
+		getline(&nombre, &j, stdin);
+		lenNombre = strlen(nombre) - 1;
+		nombre[lenNombre] ='\0';
+	}
+	
 	if (write(sockfd, nombre, BUFFERTAM) < 0){
 		fatalerror("can't write to socket");
 	}
 	
 	if (read(sockfd, &identidadValida, sizeof(int)) < 0) {
 		fatalerror("can't read from socket");
-	}
-	printf("Numero recibido desde el servidor: %d\n", identidadValida);
-	
+	}	
+
 	/* identidadValida vale 1 si el nombre de usuario de valido
 	 y 0 cuando el nombre de usuario ya esta siendo utilizado.*/
-	if (identidadValida == 0){
-		int j = BUFFERTAM;
+	if (identidadValida == 0) {
 		while(!identidadValida){
-			printf("%s es un usuario existente."
-				"Por favor, seleccione otro nombre de usuario\n", nombre);
+			printf("%s es un usuario existente.\n"
+				"Por favor, seleccione otro nombre de usuario: ", nombre);
+			
 			getline(&nombre, &j, stdin);
+			lenNombre = strlen(nombre) - 1;
+			nombre[lenNombre] ='\0';
 			if (write(sockfd, nombre, BUFFERTAM) < 0){
 				fatalerror("can't write to socket");
 			}
@@ -145,7 +156,9 @@ int main(int argc, char *argv[]) {
 				fatalerror("can't read from socket");
 			}
 		}
-	}
+	} 
+	
+	printf("%s, bienvenido al chat.\n", nombre);
 		
   /*Lectura de archivo*/
 	if (archivo != NULL){
