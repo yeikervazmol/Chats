@@ -59,10 +59,9 @@ void *atencionCliente(ParametrosHilos *recibe){
 				break;
 			case 'e': 
 				pthread_mutex_lock(&(salas->bodyguard));
-				sentenciado = calloc(1, sizeof(Item));
 				sentenciado = buscar(salas, comando + 4);
 				pthread_mutex_unlock(&(salas->bodyguard));
-				if (buscar == NULL) {
+				if (sentenciado == NULL) {
 					free(sentenciado);
 					respuesta = "0";
 				} else {

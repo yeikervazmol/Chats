@@ -24,8 +24,7 @@ Lista *miLista;
  que se encargan de eso. Por ello si se usa la funcion directamente
  se deben realizar los lock y unlock antes y despues de usar la
  funcion.*/
-Item *buscar(Lista *lista, char *tesoro)
-{
+Item *buscar(Lista *lista, char *tesoro) {
 	if(lista != NULL) {
 		Item *aux;
 		aux = lista->primero;
