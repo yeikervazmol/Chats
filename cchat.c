@@ -42,17 +42,14 @@ void *getAndWrite(int *sockfd) {
 }
 
 void *readAndPrint(int *sockfd){
-	int *sfd = sockfd;
-	char recibido[140];
+	char *recibido = calloc(BUFFERTAM, sizeof(char));
 	int i;
 	while(1){
-		for (i=0; i<140; i++){
-			recibido[i] = '\0';
-		}
-		if (read(*sfd, recibido, 140) < 0) {
+		
+		if (read(*sockfd, recibido, BUFFERTAM) < 0) {
 			fatalerror("can't read from socket");
 		}
-		printf("Recibido desde el servidor: %s\n", recibido);
+		printf("Recibido desde el servidor:\n%s\n", recibido);
 	}
 }
 
@@ -165,7 +162,7 @@ int main(int argc, char *argv[]) {
 		
 		/*Se abre el archivo.*/ 
 		if ( (fp = fopen(archivo, "r")) == NULL) {
-			printf ( 	" Error en la apertura del archivo. Es posible que el fichero no"
+			printf ( " Error en la apertura del archivo. Es posible que el fichero no"
 						" exista\n");
 		} else {
 			while (fgets(line, sizeof(line), fp)) {

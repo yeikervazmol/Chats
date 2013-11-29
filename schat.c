@@ -28,9 +28,10 @@ int hayMensaje = 0;
 char c[140];
 int limpiando = 0;
 int puerto = 25504;
-char *salas[100];
 Lista *clientes;
+Lista *salas;
 
+/*
 void *getAndWrite(ParametrosHilos *recibe) {
 	int i = 0;
 	int sockfd = recibe->newsockfd;
@@ -43,7 +44,6 @@ void *getAndWrite(ParametrosHilos *recibe) {
 		hilosLector[id] = 1;
 	}
 	while(1){
-	//	pthread_mutex_lock(&count_mutex);
 		if (hayMensaje == 0)
 		{
 			if (read(sockfd, c, CARACTERES) > 0) {
@@ -58,20 +58,70 @@ void *getAndWrite(ParametrosHilos *recibe) {
 				break;
 			}
 		}
-	//	pthread_mutex_unlock(&count_mutex);
 	}
 }
+*/
 
+void *atencionCliente(ParametrosHilos *recibe){
+	char *comando = calloc(BUFFERTAM, sizeof(char));
+	char *respuesta = calloc(BUFFERTAM, sizeof(char));
+	int i;
+	Item *sentenciado;
+	while(1){
+		if (read(recibe->newsockfd, comando, BUFFERTAM) < 0) {
+			fatalerror("can't read the socket");
+		}
+		
+		switch (comando[0]) {
+			case 's': 
+				respuesta = listar(salas);
+				break;
+			case 'u': 
+				respuesta = listar(clientes);
+				break;
+			case 'm': 
+				break;
+			case 'd': 
+				break;
+			case 'c':
+				i = insertar(salas, comando + 4, 0);
+				sprintf(respuesta, "%d", i);
+				break;
+			case 'e': 
+				pthread_mutex_lock(&(salas->bodyguard));
+				sentenciado = calloc(1, sizeof(Item));
+				sentenciado = buscar(salas, comando + 4);
+				pthread_mutex_unlock(&(salas->bodyguard));
+				if (buscar == NULL) {
+					free(sentenciado);
+					respuesta = "0";
+				} else {
+					eliminar(salas, sentenciado);
+					respuesta = "1";
+				}
+				break;
+			case 'f': 
+				break;
+			default:
+				printf("Error de protocolo con el cliente\n");
+				break;
+		}
+		
+		if (write(recibe->newsockfd, respuesta, BUFFERTAM) < 0){
+			fatalerror("can't write to socket");
+		} 
+	}
+	
+}
 void *readAndPrint(ParametrosHilos *recibe){
         int sockfd = recibe->newsockfd;
         int id = recibe->id;
         int i;
-        while(1){
-				//pthread_mutex_lock(&_mutex);
+        while(1) {
 				if ((hayMensaje==1) && (hilosLector[id] == 1) && (limpiando == 0)){
-					printf("Guardias: HayMensaje %d hilosLector[%d] %d limpiando %d\n", hayMensaje, id, hilosLector[id], limpiando);
-					printf("Guardia HayMensaje == 1: %d\n", (hayMensaje==1));
-					printf("HayMensaje: %s por el hilo %d.\n", c, id);
+					//printf("Guardias: HayMensaje %d hilosLector[%d] %d limpiando %d\n", hayMensaje, id, hilosLector[id], limpiando);
+					//printf("Guardia HayMensaje == 1: %d\n", (hayMensaje==1));
+					//printf("HayMensaje: %s por el hilo %d.\n", c, id);
 					if (write(sockfd, c, CARACTERES) < 0){
 						fatalerror("can't write to socket");
 					} 
@@ -91,15 +141,12 @@ void *readAndPrint(ParametrosHilos *recibe){
 						
 					}
 				}
-				//pthread_mutex_unlock(&_mutex);
+				
 				if (hilosLector[id] == 2){
 						close(sockfd);
-                        break;
-                }
-                
-                
-        }
-        
+						break;
+				}
+	}
 }
 
 void *echo(ParametrosHilos *recibe) {
@@ -117,10 +164,10 @@ void *echo(ParametrosHilos *recibe) {
 		}
 	}
 	pthread_t hiloW, hiloR;
-	pthread_create(&hiloW, NULL, (void *)getAndWrite, recibe);
-	pthread_create(&hiloR, NULL, (void *)readAndPrint, recibe);
+	pthread_create(&hiloW, NULL, (void *)atencionCliente, recibe);
+//	pthread_create(&hiloR, NULL, (void *)readAndPrint, recibe);
 	pthread_join(hiloW, NULL);
-	pthread_join(hiloR, NULL);
+//	pthread_join(hiloR, NULL);
 	return NULL;
 }
 
@@ -135,29 +182,43 @@ int main(int argc, char *argv []) {
 	ParametrosHilos envio;
 	pthread_mutex_init(&count_mutex, NULL);
 	pthread_mutex_init(&_mutex, NULL);
-	salas[0] = "actual";
 	char key;
+	char *nombreSala = calloc(BUFFERTAM+1, sizeof(char));
+	nombreSala = "actual";
 	
+	/* Se inicializa la sala de los clientes */
 	clientes = calloc(1, sizeof(Lista));
 	if (clientes == NULL){
 		printf("Error");
 		exit(1);
 	}
-	if (pthread_mutex_init(&(clientes->bodyguard), NULL) != 0)
-	{
+	if (pthread_mutex_init(&(clientes->bodyguard), NULL) != 0) {
 		free(clientes);
 		return 0;
 	}
+	
+	/* Se inicializa la lista de salas */
+	salas = calloc(1, sizeof(Lista));
+	if (salas == NULL){
+		printf("Error");
+		exit(1);
+	}
+	if (pthread_mutex_init(&(salas->bodyguard), NULL) != 0) {
+		free(salas);
+		return 0;
+	}
+	
 	/* Recuerda el nombre del archivo para mensajes de error. */
 	programname = argv[0];
 	
+	/* Verificamos los parametros de entrada */
 	while ((key = getopt(argc, argv, "p:s:")) != -1) {
 		switch (key) {
 			case 'p':
 				puerto = atoi(optarg);
 				break;
 			case 's':
-				salas[0] = optarg;
+				nombreSala = optarg;
 				break;
 			default:
 				printf("Forma incorrecta de invocacion del programa, mejor intete: schat [-p <puerto>] [-s <sala>]\n");
@@ -166,7 +227,9 @@ int main(int argc, char *argv []) {
 			}
 	}
 	
-	//printf("Sala 0: %s\n",salas[0]);
+	/* Agregamos la sala principal del chat */
+	int s = insertar(salas, nombreSala, 0);
+	
 	/* Abre el socket TCP. */
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockfd < 0){
@@ -210,6 +273,8 @@ int main(int argc, char *argv []) {
 		if ((pthread_create(&hilos[i], NULL, (void *)echo, (void *)&envio)) != 0){
 			fatalerror("Error catastrofico creando hilo :OOO");
 		}
+		
+		
 	}
 	
 	
