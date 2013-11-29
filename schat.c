@@ -31,44 +31,14 @@ int puerto = 25504;
 Lista *clientes;
 Lista *salas;
 
-/*
-void *getAndWrite(ParametrosHilos *recibe) {
-	int i = 0;
-	int sockfd = recibe->newsockfd;
-	int id = recibe->id;
-	
-	for (i=0; i<CARACTERES; i++){
-		c[i] = '\0';
-	}
-	if (hilosLector[id] == 2){
-		hilosLector[id] = 1;
-	}
-	while(1){
-		if (hayMensaje == 0)
-		{
-			if (read(sockfd, c, CARACTERES) > 0) {
-				printf("Se identifico la secuencia: %s en el hilo %d\n", c, id);
-				
-				hayMensaje = 1;	
-				
-			} else {
-				hilosLector[id] = 2;
-				hilosActivos--;
-				close(sockfd);
-				break;
-			}
-		}
-	}
-}
-*/
-
 void *atencionCliente(ParametrosHilos *recibe){
 	char *comando = calloc(BUFFERTAM, sizeof(char));
 	char *respuesta = calloc(BUFFERTAM, sizeof(char));
+	int sockfd = recibe->newsockfd;
 	int i;
 	Item *sentenciado;
 	while(1){
-		if (read(recibe->newsockfd, comando, BUFFERTAM) < 0) {
+		if (read(sockfd, comando, BUFFERTAM) < 0) {
 			fatalerror("can't read the socket");
 		}
 		
@@ -107,7 +77,7 @@ void *atencionCliente(ParametrosHilos *recibe){
 				break;
 		}
 		
-		if (write(recibe->newsockfd, respuesta, BUFFERTAM) < 0){
+		if (write(sockfd, respuesta, BUFFERTAM) < 0){
 			fatalerror("can't write to socket");
 		} 
 	}
