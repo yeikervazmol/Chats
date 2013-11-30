@@ -95,11 +95,52 @@ char *desuscribirSala(char *nombreCliente){
 		eliminar(sala->listaInterna, sentenciado);
 		ant = aux;
 		aux = aux->ApSig;
-		eliminar(cliente->listaInterna,ant);
+		eliminar(cliente->listaInterna, ant);
+	}
+
+	return "1";
+}
+
+char *eliminarSala(char *sala){
+	Item *item;
+	
+	if(strcmp(sala, nombreSala) == 0){
+		return "-1";
 	}
 	
-	//liberarCompleta(cliente->listaInterna);
-	return "1";
+	pthread_mutex_lock(&(salas->bodyguard));
+	item = buscar(salas, sala);
+	pthread_mutex_unlock(&(salas->bodyguard));
+	if (item == NULL) {
+		return "0";
+	} else {
+		
+		Item *cliente;
+		Item *aux;
+		Item *sentenciado;
+		Item *ant;
+		
+		aux = item->listaInterna->primero;
+
+		while (aux != NULL) {
+			
+			pthread_mutex_lock(&(clientes->bodyguard));
+			cliente = buscar(clientes, aux->name);
+			pthread_mutex_unlock(&(clientes->bodyguard));
+		
+			pthread_mutex_lock(&(cliente->listaInterna->bodyguard));
+			sentenciado = buscar(cliente->listaInterna, sala);
+			pthread_mutex_unlock(&(cliente->listaInterna->bodyguard));
+		
+			eliminar(cliente->listaInterna, sentenciado);
+			ant = aux;
+			aux = aux->ApSig;
+			eliminar(item->listaInterna, ant);
+		}
+		
+		return "1";
+		
+	}
 }
 
 void *atencionCliente(ParametrosHilos *recibe){
@@ -148,17 +189,8 @@ void *atencionCliente(ParametrosHilos *recibe){
 					respuesta = "0";
 				}
 				break;
-			case 'e': 
-				pthread_mutex_lock(&(salas->bodyguard));
-				item = buscar(salas, comando + 4);
-				pthread_mutex_unlock(&(salas->bodyguard));
-				if (item == NULL) {
-					free(item);
-					respuesta = "0";
-				} else {
-					eliminar(salas, item);
-					respuesta = "1";
-				}
+			case 'e':
+				respuesta = eliminarSala(comando + 4);
 				break;
 			case 'f': 
 				break;
