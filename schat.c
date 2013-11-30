@@ -69,6 +69,46 @@ char *suscribirSala(char *salaSus, char *nombreCliente, int sockfd){
 	
 }
 
+char *enviarMensaje(char *mensaje,char *nombreUsuario){
+	Item *cliente;
+	Item *aux;
+	Item *sala;
+	Item *usuarioDestino;
+	char *mensajeBonito = calloc(BUFFERTAM, sizeof(char));
+
+	pthread_mutex_lock(&(clientes->bodyguard));
+	cliente = buscar(clientes, nombreUsuario);
+	pthread_mutex_unlock(&(clientes->bodyguard));
+	
+	aux = cliente->listaInterna->primero;
+	
+	while (aux != NULL) {
+		
+		pthread_mutex_lock(&(salas->bodyguard));
+		sala = buscar(salas, aux->name);
+		pthread_mutex_unlock(&(salas->bodyguard));
+		
+		usuarioDestino = sala->listaInterna->primero;
+		while (usuarioDestino != NULL) {
+			strcpy(mensajeBonito, "En sala ");
+			strcat(mensajeBonito, aux->name);
+			strcat(mensajeBonito, ", ");
+			strcat(mensajeBonito, nombreUsuario);
+			strcat(mensajeBonito, " dice: ");
+			strcat(mensajeBonito, mensaje);
+			
+			if (write(usuarioDestino->sockfd, mensajeBonito, BUFFERTAM) < 0){
+				fatalerror("can't write to socket");
+			}
+			usuarioDestino = usuarioDestino->ApSig;
+		}
+	
+		aux = aux->ApSig;
+	}
+	free(mensajeBonito);
+	return "1";
+}
+
 char *desuscribirSala(char *nombreCliente){
 	Item *cliente;
 	Item *aux;
@@ -98,6 +138,35 @@ char *desuscribirSala(char *nombreCliente){
 		eliminar(cliente->listaInterna, ant);
 	}
 
+	return "1";
+}
+
+char *crearSala(char *nombreSala){
+	int i;
+	Item *item;
+	
+	i = insertar(salas, nombreSala, 0);
+
+	if (i == 1) {
+		pthread_mutex_lock(&(salas->bodyguard));
+		item = buscar(salas, nombreSala);
+		pthread_mutex_unlock(&(salas->bodyguard));
+		
+		item->listaInterna = calloc(1, sizeof(Lista));
+		
+		if(item->listaInterna == NULL){
+			fatalerror("No se puede alocar memoria para una lista interna.\n");
+			return "0";
+		}
+		
+		if (pthread_mutex_init(&(item->listaInterna->bodyguard), NULL) != 0) {
+			fatalerror("No se puede inicializar el mutex de una lista.\n");
+			return "0";
+		} 
+		
+	}else {
+		return "0";
+	}
 	return "1";
 }
 
@@ -137,131 +206,26 @@ char *eliminarSala(char *sala){
 			aux = aux->ApSig;
 			eliminar(item->listaInterna, ant);
 		}
+		eliminar(salas, item);
 		
 		return "1";
 		
 	}
 }
 
-void *atencionCliente(ParametrosHilos *recibe){
+void *inicializarCliente(ParametrosHilos *recibe){
 	
-	char *comando = calloc(BUFFERTAM, sizeof(char));
-	char *respuesta = calloc(BUFFERTAM, sizeof(char));
-	int i;
-	Item *item;
-	while(1){
-		if (read(recibe->newsockfd, comando, BUFFERTAM) < 0) {
-			fatalerror("can't read the socket");
-		}
-		
-		switch (comando[0]) {
-			case 's':
-				if(comando[1] == 'a'){
-					respuesta = listar(salas);
-				} else {
-					respuesta = suscribirSala(comando+4, recibe->nombreCliente, recibe->newsockfd);
-				}
-				break;
-			case 'u': 
-				respuesta = listar(clientes);
-				break;
-			case 'm': 
-				break;
-			case 'd': 
-				respuesta = desuscribirSala(recibe->nombreCliente);
-				break;
-			case 'c':
-				i = insertar(salas, comando + 4, 0);
-
-				if (i == 1) {
-					pthread_mutex_lock(&(salas->bodyguard));
-					item = buscar(salas, comando + 4);
-					pthread_mutex_unlock(&(salas->bodyguard));
-					item->listaInterna = calloc(1, sizeof(Lista));
-					if(item->listaInterna == NULL){
-						fatalerror("No se puede alocar memoria para una lista interna.\n");
-					}
-					if (pthread_mutex_init(&(item->listaInterna->bodyguard), NULL) != 0) {
-						fatalerror("No se puede inicializar el mutex de una lista.\n");
-					}
-					respuesta = "1";
-				} else {
-					respuesta = "0";
-				}
-				break;
-			case 'e':
-				respuesta = eliminarSala(comando + 4);
-				break;
-			case 'f': 
-				break;
-			default:
-				printf("Error de protocolo con el cliente\n");
-				break;
-		}
-		
-		if (write(recibe->newsockfd, respuesta, BUFFERTAM) < 0){
-			fatalerror("can't write to socket");
-		} 
-	}
-	
-}
-
-/*
-void *readAndPrint(ParametrosHilos *recibe){
-	
-        int id = recibe->id;
-        int i;
-        while(1) {
-				if ((hayMensaje==1) && (hilosLector[id] == 1) && (limpiando == 0)){
-					//printf("Guardias: HayMensaje %d hilosLector[%d] %d limpiando %d\n", hayMensaje, id, hilosLector[id], limpiando);
-					//printf("Guardia HayMensaje == 1: %d\n", (hayMensaje==1));
-					//printf("HayMensaje: %s por el hilo %d.\n", c, id);
-					if (write(sockfd, c, CARACTERES) < 0){
-						fatalerror("can't write to socket");
-					} 
-					hilosLector[id] = 0;
-					hilosHanLeido++;
-					printf("HiloHanLeido %d por el hilo %d.\n", hilosHanLeido, id);
-					if (hilosHanLeido == hilosActivos){
-						hayMensaje = 0;
-						limpiando = 1;
-						for (i=0;i<hilosEnArreglo;i++){
-								if (hilosLector[i] == 0) {
-										hilosLector[i] = 1;
-								}        
-						}
-						hilosHanLeido = 0;
-						limpiando = 0;
-						
-					}
-				}
-				
-				if (hilosLector[id] == 2){
-						close(sockfd);
-						break;
-				}
-	}
-}
-*/
-void *echo(ParametrosHilos *recibe) {
-	
-	ParametrosHilos *recibe2 = calloc(1, sizeof(ParametrosHilos));
-	recibe2->newsockfd = recibe->newsockfd;
-	recibe2->id = recibe->id;
 	int nombreValido = 0;
 	char *nombreCliente = calloc(BUFFERTAM, sizeof(char));
 	Item *salaPredeterminada;
 	Item *clienteActual;
 	
-	if (recibe2 == NULL){
-		fatalerror("No se ha podido reservar memoria mediante calloc.\n");
-	}
-	
 	while(nombreValido == 0	){
-		if (read(recibe2->newsockfd, nombreCliente, BUFFERTAM) < 0) {
+		if (read(recibe->newsockfd, nombreCliente, BUFFERTAM) < 0) {
 			fatalerror("can't listen to socket");
 		}
-		nombreValido = insertar(clientes, nombreCliente,recibe2->newsockfd);
+		nombreValido = insertar(clientes, nombreCliente,recibe->newsockfd);
+		
 		if( nombreValido ){
 			
 			pthread_mutex_lock(&(clientes->bodyguard));
@@ -281,41 +245,93 @@ void *echo(ParametrosHilos *recibe) {
 			}
 		}
 		
-		if (write(recibe2->newsockfd, &nombreValido, sizeof(int)) < 0){
+		if (write(recibe->newsockfd, &nombreValido, sizeof(int)) < 0){
 			fatalerror("can't write to socket");
 		}
 	}
 	
-	recibe2->nombreCliente = nombreCliente;
+	recibe->nombreCliente = nombreCliente;
 	
 	pthread_mutex_lock(&(salas->bodyguard));
 	salaPredeterminada = buscar(salas, nombreSala);
 	pthread_mutex_unlock(&(salas->bodyguard));
-	if( insertar((salaPredeterminada->listaInterna), nombreCliente, recibe2->newsockfd) == 0 ){
+	if( insertar((salaPredeterminada->listaInterna), nombreCliente, recibe->newsockfd) == 0 ){
 		fatalerror("No se pudo asociar un cliente a su sala.\n");
 	}
 	
 	pthread_mutex_lock(&(clientes->bodyguard));
 	clienteActual = buscar(clientes, nombreCliente);
 	pthread_mutex_unlock(&(clientes->bodyguard));
+	
 	if( insertar((clienteActual->listaInterna), nombreSala, 0) == 0 ){
 		fatalerror("No se pudo asociar una sala a un cliente.\n");
 	}
-	printf("Lista de salas del usuario %s\n%s", clienteActual->name, listar(clienteActual->listaInterna));
 	
-	
-	
-	pthread_t hiloW, hiloR;
-	pthread_create(&hiloW, NULL, (void *)atencionCliente, recibe2);
-//	pthread_create(&hiloR, NULL, (void *)readAndPrint, recibe2);
-	pthread_join(hiloW, NULL);
-//	pthread_join(hiloR, NULL);
-	
-	free(recibe2);
-	free(nombreCliente);
-	return NULL;
+	return;
 }
 
+void *atencionCliente(ParametrosHilos *recibe){
+	
+	ParametrosHilos *recibe2 = calloc(1, sizeof(ParametrosHilos));
+	recibe2->newsockfd = recibe->newsockfd;
+	recibe2->id = recibe->id;
+	
+	if (recibe2 == NULL){
+		free(recibe2);
+		fatalerror("No se ha podido reservar memoria mediante calloc.\n");
+	}
+	
+	inicializarCliente(recibe2);
+	
+	printf("Luego de inicializar\n");
+	
+	char *comando = calloc(BUFFERTAM, sizeof(char));
+	char *respuesta = calloc(BUFFERTAM, sizeof(char));
+	
+	while(1){
+		if (read(recibe2->newsockfd, comando, BUFFERTAM) < 0) {
+			fatalerror("can't read the socket");
+		}
+		
+		switch (comando[0]) {
+			case 's':
+				if(comando[1] == 'a'){
+					respuesta = listar(salas);
+				} else {
+					respuesta = suscribirSala(comando+4, recibe2->nombreCliente, recibe2->newsockfd);
+				}
+				break;
+			case 'u': 
+				respuesta = listar(clientes);
+				break;
+			case 'm': 
+				respuesta = enviarMensaje(comando + 4, recibe2->nombreCliente);
+				break;
+			case 'd': 
+				respuesta = desuscribirSala(recibe2->nombreCliente);
+				break;
+			case 'c':
+				respuesta = crearSala(comando + 4);
+				break;
+			case 'e':
+				respuesta = eliminarSala(comando + 4);
+				break;
+			case 'f': 
+				break;
+			default:
+				printf("Error de protocolo con el cliente\n");
+				break;
+		}
+		
+		if (write(recibe2->newsockfd, respuesta, BUFFERTAM) < 0){
+			fatalerror("can't write to socket");
+		} 
+	}
+	
+	free(recibe2);
+	free(comando);
+	free(respuesta);
+}
 
 
 int main(int argc, char *argv []) {	
@@ -429,7 +445,7 @@ int main(int argc, char *argv []) {
 		printf("hilosActivos %d\n",hilosEnArreglo);
 		hilosActivos++;
 		envio.newsockfd = newsockfd;
-		if ((pthread_create(&hilos[i], NULL, (void *)echo, (void *)&envio)) != 0){
+		if ((pthread_create(&hilos[i], NULL, (void *)atencionCliente, (void *)&envio)) != 0){
 			fatalerror("Error catastrofico creando hilo :OOO");
 		}
 		
