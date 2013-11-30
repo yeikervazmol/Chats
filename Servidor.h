@@ -24,6 +24,7 @@
 /*Estructuras utilizadas */
 typedef struct ParametrosHilos {
 	int id;
+	char *nombreCliente;
 	int newsockfd;
 } ParametrosHilos;
 

@@ -31,5 +31,5 @@ typedef struct Lista {
 Item *buscar(Lista *cabeza, char *tesoro);
 int insertar(Lista *cabeza, char *name, int sockfd);
 void eliminar(Lista *cabeza,  Item *sentenciado);
-void liberarCompleto(Lista *Completa);
+void liberarCompleta(Lista *Completa);
 char *listar(Lista *cabeza);

@@ -94,7 +94,25 @@ int insertar(Lista *lista, char *name, int sockfd) {
 	}
 }
 
-// PENSAR QUE HACER CON LA LISTA INTERNA.
+void liberarCompleta(Lista *lista)
+{
+	if (lista != NULL){
+		pthread_mutex_lock(&(lista->bodyguard));
+		Item *aux = lista->primero;
+		Item *auxSig;
+		while(aux != NULL){
+			auxSig = aux->ApSig;
+			free(aux->name);
+			liberarCompleta(aux->listaInterna);
+			free(aux);
+			aux = auxSig;
+		}
+		pthread_mutex_unlock(&(lista->bodyguard));
+		pthread_mutex_destroy(&(lista->bodyguard));
+		free(lista);
+	}
+}
+
 void eliminar(Lista *lista, Item *sentenciado) {
 	if (lista != NULL){
 		pthread_mutex_lock(&(lista->bodyguard));
@@ -104,6 +122,7 @@ void eliminar(Lista *lista, Item *sentenciado) {
 			if (aux == sentenciado){
 				lista->primero = aux->ApSig;
 				free(aux->name);
+				liberarCompleta(aux->listaInterna);
 				free(aux);
 			} else {
 				Item *auxAnt;
@@ -113,6 +132,7 @@ void eliminar(Lista *lista, Item *sentenciado) {
 					if (aux == sentenciado){
 						auxAnt->ApSig = aux->ApSig;
 						free(aux->name);
+						liberarCompleta(aux->listaInterna);
 						free(aux);
 						pthread_mutex_unlock(&(lista->bodyguard));	
 						return;
@@ -124,27 +144,6 @@ void eliminar(Lista *lista, Item *sentenciado) {
 	}
 
 }
-	
-void liberarCompleta(Lista *lista)
-{
-	if (lista != NULL){
-		pthread_mutex_lock(&(lista->bodyguard));
-		Item *aux = lista->primero;
-		Item *auxSig;
-		while(aux != NULL){
-			// PENSAR BIEN ESTA PARTE
-			// liberarCompleta(aux->listaInterna);
-			auxSig = aux->ApSig;
-			free(aux->name);
-			free(aux);
-			aux = auxSig;
-		}
-		pthread_mutex_unlock(&(lista->bodyguard));
-		pthread_mutex_destroy(&(lista->bodyguard));
-		free(lista);
-	}
-}
-
 
 char *listar(Lista *lista) {
 	
