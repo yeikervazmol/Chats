@@ -21,28 +21,74 @@
 #include <pthread.h>
 
 #define BUFFERTAM 1024
+pthread_mutex_t _mutex;
 
-void *getAndWrite(int *sockfd) {
-	char c;
-	char mensaje[140];
-	int i;
+int filtrar(char *paquete) {
+	char *comando = calloc(5,sizeof(char));
+	if (strlen(paquete) == 3) {
+		strncpy(comando, paquete, 3);
+		comando[4] = '\0';
+	} else {
+		strncpy(comando, paquete, 4);
+		comando[5] = '\0';
+	}
+	if( (strcmp(comando, "sal") == 0)
+		||	(strcmp(comando, "usu") == 0)
+		|| 	(strcmp(comando, "men ") == 0)
+		|| 	(strcmp(comando, "sus ") == 0)
+		|| 	(strcmp(comando, "des") == 0)
+		|| 	(strcmp(comando, "cre ") == 0)
+		|| 	(strcmp(comando, "eli ") == 0)
+		|| 	(strcmp(comando, "fue") == 0) ) {
+		free(comando);
+		return 1;
+	} else {
+		free(comando);
+		return 0;
+	}
+}
+
+void *recibeComando(int *sockfd) {
+	
+	char *mensaje = calloc(BUFFERTAM+1, sizeof(char));
+	char *recibido = calloc(BUFFERTAM, sizeof(char));
+	int j = BUFFERTAM;
+	int i = 0;
+	int longMensaje;
 	
 	while (1){
-		for (i=0; i<140; i++){
-			mensaje[i] = '\0';
-		}
-		i = 0;
-		while ((c = getchar()) != '\n'){
-			mensaje[i++] = c;
-		}
 		
-		if (write(*sockfd, mensaje, 140) < 0){
-			fatalerror("can't write to socket");
+		getline(&mensaje, &j, stdin);
+		longMensaje = strlen(mensaje) - 1;
+		mensaje[longMensaje] = '\0';
+		
+		if(filtrar(mensaje)) {
+		
+			if (write(*sockfd, mensaje, BUFFERTAM) < 0) {
+				fatalerror("can't write to socket");
+			}
+			
+		} else {
+			printf("Sintaxis incorrecta, pruebe con:\n "
+			"sal: Este comando hace que el usuario pueda ver en su pantalla " 
+			"una lista de las salas de chat que el servidor posee.\n"
+			"usu: Este comando hace que el usuario pueda ver en su pantalla "
+			"una lista actualizada de todos los usuarios que están suscritos "
+			"en el servidor, incluyéndolo a el mismo\n"
+			"men <mensaje>: Este comando envía el mensaje a todos los usuarios"
+			" que están conectados al mismo servidor en la sala de chat a la "
+			"que está suscrito el usuario.\n"
+			"sus <sala>: El usuario se suscribe a la sala de chat sala.\n"
+			"des Este comando de-suscribe al usuario de la sala o salas a las "
+			"que este suscrito\n"
+			"cre <sala>: El usuario crea la sala en el servidor.\n"
+			"eli <sala>: El usuario elimina la sala del servidor.\n"
+			"fue: Este comando permite terminar l\n");
 		}
 	}
 }
 
-void *readAndPrint(int *sockfd){
+void *recibeMensaje(int *sockfd){
 	char *recibido = calloc(BUFFERTAM, sizeof(char));
 	int i;
 	while(1){
@@ -50,16 +96,18 @@ void *readAndPrint(int *sockfd){
 		if (read(*sockfd, recibido, BUFFERTAM) < 0) {
 			fatalerror("can't read from socket");
 		}
-		printf("Recibido desde el servidor:\n%s\n", recibido);
+		
+		
+		printf("%s", recibido);
 	}
 }
 
 void copy(int sockfd) {
-	pthread_t hiloW, hiloR;
-	pthread_create(&hiloW, NULL, (void *)getAndWrite, &sockfd);
-	pthread_create(&hiloR, NULL, (void *)readAndPrint, &sockfd);
-	pthread_join(hiloW, NULL);
-	pthread_join(hiloR, NULL);
+	pthread_t hiloRC, hiloRM;
+	pthread_create(&hiloRC, NULL, (void *)recibeComando, &sockfd);
+	pthread_create(&hiloRM, NULL, (void *)recibeMensaje, &sockfd);
+	pthread_join(hiloRC, NULL);
+	pthread_join(hiloRM, NULL);
 }
 
 int main(int argc, char *argv[]) {
@@ -76,7 +124,6 @@ int main(int argc, char *argv[]) {
 	char line[BUFFERTAM];
 	int j = BUFFERTAM;
 	int lenNombre;
-	
   
   /* Remember the program name for error messages. */
   programname = argv[0];

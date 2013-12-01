@@ -23,10 +23,6 @@ pthread_mutex_t _mutex;
 int hilosLector[50]; /* arreglo para manejar las lecturas de los hilos.*/
 int hilosEnArreglo = 0;
 int hilosActivos = 0;
-int hilosHanLeido = 0;
-int hayMensaje = 0;
-char c[140];
-int limpiando = 0;
 int puerto = 25504;
 Lista *clientes;
 Lista *salas;
@@ -99,31 +95,26 @@ char *suscribirSala(char *salaSus, char *nombreCliente, int sockfd){
 	
 	
 	if(item == NULL){
-		return "0";
+		return "Lo sentimos, no puede suscribirse a dicha sala pues la misma no existe.\n";
 	}
 	
 	if( insertar(item->listaInterna, nombreCliente, sockfd) == 0){
-		return "0";
+		return "Lo sentimos, no puedo suscribirse a dicha sala por problemas en el servidor.\n";
 	}
-	
-	printf("Lista de usuarios de la sala %s:\n%s\n", item->name, listar(item->listaInterna));
 	
 	pthread_mutex_lock(&(clientes->bodyguard));
 	item = buscar(clientes, nombreCliente);
 	pthread_mutex_unlock(&(clientes->bodyguard));
 	
 	if(item == NULL){
-		return "0";
+		return "Lo sentimos, no puedo suscribirse a dicha sala por problemas en el servidor.\n";
 	}
 	
 	if( insertar(item->listaInterna, salaSus, sockfd) == 0){
-		return "0";
+		return "Lo sentimos, no puedo suscribirse a dicha sala por problemas en el servidor.\n";
 	}
-	
-	printf("Lista de salas del usuario %s:\n%s\n", item->name, listar(item->listaInterna));
-	
-	return "1";
-	
+		
+	return "Usted se ha sido suscrito a la sala con exito.\n";	
 }
 
 char *enviarMensaje(char *mensaje,char *nombreUsuario){
@@ -153,6 +144,7 @@ char *enviarMensaje(char *mensaje,char *nombreUsuario){
 			strcat(mensajeBonito, nombreUsuario);
 			strcat(mensajeBonito, " dice: ");
 			strcat(mensajeBonito, mensaje);
+			strcat(mensajeBonito, "\n");
 			
 			if (write(usuarioDestino->sockfd, mensajeBonito, BUFFERTAM) < 0){
 				fatalerror("can't write to socket");
@@ -163,7 +155,7 @@ char *enviarMensaje(char *mensaje,char *nombreUsuario){
 		aux = aux->ApSig;
 	}
 	free(mensajeBonito);
-	return "1";
+	return "\n";
 }
 
 char *desuscribirSala(char *nombreCliente){
@@ -195,7 +187,7 @@ char *desuscribirSala(char *nombreCliente){
 		eliminar(cliente->listaInterna, ant);
 	}
 
-	return "1";
+	return "Se ha desuscrito de todas sus salas con exito.";
 }
 
 char *crearSala(char *nombreSala){
@@ -213,32 +205,32 @@ char *crearSala(char *nombreSala){
 		
 		if(item->listaInterna == NULL){
 			fatalerror("No se puede alocar memoria para una lista interna.\n");
-			return "0";
+			return "No se pudo crear sala por problemas internos en el servidor.\n";
 		}
 		
 		if (pthread_mutex_init(&(item->listaInterna->bodyguard), NULL) != 0) {
 			fatalerror("No se puede inicializar el mutex de una lista.\n");
-			return "0";
+			return "No se pudo crear sala por problemas internos en el servidor.\n";
 		} 
 		
 	}else {
-		return "0";
+		return "Esta sala ya existe.\n";
 	}
-	return "1";
+	return "Sala creada con exito.\n";
 }
 
 char *eliminarSala(char *sala){
 	Item *item;
 	
 	if(strcmp(sala, nombreSala) == 0){
-		return "-1";
+		return "No puede eliminar la sala predeterminada del chat\n";
 	}
 	
 	pthread_mutex_lock(&(salas->bodyguard));
 	item = buscar(salas, sala);
 	pthread_mutex_unlock(&(salas->bodyguard));
 	if (item == NULL) {
-		return "0";
+		return "No se pudo eliminar la sala por problemas internos en el servidor.\n";
 	} else {
 		
 		Item *cliente;
@@ -265,12 +257,12 @@ char *eliminarSala(char *sala){
 		}
 		eliminar(salas, item);
 		
-		return "1";
+		return "Sala eliminada con exito\n";
 		
 	}
 }
 
- void *abandonarCliente(char *nombreCliente){	
+void *abandonarCliente(char *nombreCliente){	
  	Item *item5;
 	
 	desuscribirSala(nombreCliente);
@@ -299,23 +291,29 @@ void *atencionCliente(ParametrosHilos *recibe){
 	
 	char *comando = calloc(BUFFERTAM, sizeof(char));
 	char *respuesta = calloc(BUFFERTAM, sizeof(char));
+	char *respuestaBonita = calloc(BUFFERTAM,sizeof(char));
 	Item *item5;
 	
 	while(1){
 		if (read(recibe2->newsockfd, comando, BUFFERTAM) < 0) {
 			fatalerror("can't read the socket");
 		}
+		printf("This is what I recieved: %s\n", comando);
 		
 		switch (comando[0]) {
 			case 's':
 				if(comando[1] == 'a'){
-					respuesta = listar(salas);
+					strcpy(respuestaBonita, "Lista de salas del servidor:\n");
+					strcat(respuestaBonita, listar(salas));
+					respuesta = respuestaBonita;
 				} else {
 					respuesta = suscribirSala(comando+4, recibe2->nombreCliente, recibe2->newsockfd);
 				}
 				break;
 			case 'u': 
-				respuesta = listar(clientes);
+				strcpy(respuestaBonita, "Lista de clientes activos:\n");
+				strcat(respuestaBonita, listar(clientes));
+				respuesta = respuestaBonita;
 				break;
 			case 'm': 
 				respuesta = enviarMensaje(comando + 4, recibe2->nombreCliente);
@@ -341,6 +339,7 @@ void *atencionCliente(ParametrosHilos *recibe){
 			if (write(recibe2->newsockfd, respuesta, BUFFERTAM) < 0){
 				fatalerror("can't write to socket");
 			} 
+			printf("This is my answer: %s\n", respuesta);
 		} else {
 			break;
 		}
