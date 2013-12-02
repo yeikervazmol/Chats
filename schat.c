@@ -453,8 +453,6 @@ void *atenderCliente(ParametrosHilos *recibe){
 			fatalerror("can't read the socket");
 		}
 		if (abortar == 1){
-			free(comando);
-			free(respuesta);
 			pthread_exit(&hilos[recibe2->id]);
 		}
 		
@@ -495,8 +493,9 @@ void *atenderCliente(ParametrosHilos *recibe){
 				break;
 			default:
 				printf("Error de protocolo con uno de los clientes\n");
+				free(recibe2);
+				free(respuestaBonita);
 				free(comando);
-				free(respuesta);
 				pthread_exit(&hilos[recibe2->id]);
 		}
 		
@@ -511,8 +510,9 @@ void *atenderCliente(ParametrosHilos *recibe){
 		}
 	}
 	
+	free(recibe2);
+	free(respuestaBonita);
 	free(comando);
-	free(respuesta);
 	pthread_exit(&hilos[recibe2->id]);
 }
 
