@@ -84,6 +84,9 @@ void abortarSeguro(){
  */
 int filtrar(char *paquete) {
 	char *comando = calloc(5,sizeof(char));
+	if (comando == NULL) {
+		fatalerror("Error reservando memoria mediante calloc");
+	}
 	/**
 	 * Tomamos solo las 3 o 4 primeras palabras del
 	 * 	comando para saber si es correcto.
@@ -126,6 +129,9 @@ int filtrar(char *paquete) {
 void *enviarComando(int *sockfd) {
 	
 	char *mensaje = calloc(BUFFERTAM+1, sizeof(char));
+	if (mensaje== NULL) {
+		fatalerror("Error reservando memoria mediante calloc");
+	}
 	int j = BUFFERTAM;
 	int i = 0;
 	int longMensaje;
@@ -211,6 +217,7 @@ void *enviarComando(int *sockfd) {
 			printf( "Problemas al cerrar el fichero\n" );
 		}
 	}
+	
 	free(mensaje);
 	pthread_exit(&hiloEC);
 }
@@ -224,6 +231,9 @@ void *enviarComando(int *sockfd) {
  */
 void *recibirMensaje(int *sockfd){
 	char *recibido = calloc(BUFFERTAM, sizeof(char));
+	if (recibido == NULL) {
+		fatalerror("Error reservando memoria mediante calloc");
+	}
 	
 	/* Hasta que no se corte la ejecucion abrutamente hacer */
 	while(abortar == 0){
@@ -247,8 +257,7 @@ void *recibirMensaje(int *sockfd){
 				servidorActivo = 0;
 				abortar = 1;
 				abortarSeguro();
-				free(recibido);
-				pthread_exit(&hiloRM);
+				break;
 			} else {
 				/* Caso en el que el cliente aborta. */
 				break;
@@ -289,20 +298,30 @@ void iniciarConcurrencia(int sockfd) {
  */
 int main(int argc, char *argv[]) {
 	
+	/* Variable que verifica si el nombre del usuario no existe */
 	int identidadValida = 0;
 	struct sockaddr_in serveraddr;
+	/**
+	 * Variables que contiene el servidor y puerto
+	 * * Por default el servidor es 127.0.0.1
+	 * * Por default puerto es 25504 
+	 */
 	char *server;
 	server = "127.0.0.1";
 	int puerto = 25504;
+	/* Variables que contienen los nombres de usuario y archivo */
 	char *nombre = calloc(BUFFERTAM+1, sizeof(char));
 	char *archivo = NULL;
 	char key;
-	char line[BUFFERTAM];
 	int j = BUFFERTAM;
 	int lenNombre;
-  
-  /* Remember the program name for error messages. */
-  programname = argv[0];
+	
+	if (nombre == NULL) {
+		fatalerror("Error reservando memoria mediante calloc");
+	}
+	
+	/* Recordar el nombre del programa para enviar errores. */
+	programname = argv[0];
 
 	while ((key = getopt(argc, argv, "h:p:n:a:")) != -1) {
 		switch (key) {
@@ -399,6 +418,7 @@ int main(int argc, char *argv[]) {
 	
   /* Copy input to the server. */
 	iniciarConcurrencia(sockfd);
+	free(nombre);
 	close(sockfd);
 	exit(EXIT_SUCCESS);
 }

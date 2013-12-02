@@ -70,7 +70,6 @@ void abortarSeguro(){
 	
 	liberarCompleta(salas);
 	liberarCompleta(clientes);
-	
 	close(sockfd);
 	exit(1);
 }
@@ -89,6 +88,10 @@ void *inicializarCliente(ParametrosHilos *recibe){
 	char *nombreCliente = calloc(BUFFERTAM, sizeof(char));
 	Item *salaPredeterminada;
 	Item *clienteActual;
+	
+	if (nombreCliente == NULL) {
+		fatalerror("Error reservando memoria mediante calloc");
+	}
 	
 	/* Se obliga a tener un nombre unico de usuario */
 	while(nombreValido == 0	){
@@ -204,7 +207,11 @@ char *enviarMensaje(char *mensaje,char *nombreUsuario){
 	Item *sala;
 	Item *usuarioDestino;
 	char *mensajeBonito = calloc(BUFFERTAM, sizeof(char));
-
+	
+	if (mensajeBonito == NULL) {
+		fatalerror("Error reservando memoria mediante calloc");
+	}
+	
 	/**
 	 * Se busca el cliente que envio el mensaje
 	 *	se busca en su lista interna las salas a las
@@ -242,6 +249,7 @@ char *enviarMensaje(char *mensaje,char *nombreUsuario){
 	
 		aux = aux->ApSig;
 	}
+	
 	free(mensajeBonito);
 	return "";
 }
@@ -397,8 +405,7 @@ char *eliminarSala(char *sala){
 void abandonarCliente(char *nombreCliente){	
  	Item *item5;
 	
-	/* Se desuscribe al cliente de todas las salsa que pertene */
-	
+	/* Se desuscribe al cliente de todas las salas que pertene */
 	desuscribirSala(nombreCliente);
 	
 	pthread_mutex_lock(&(clientes->bodyguard));
@@ -516,7 +523,8 @@ void *atenderCliente(ParametrosHilos *recibe){
  * @param Argumentos enviados.
  * 
  */
-int main(int argc, char *argv []) {	
+int main(int argc, char *argv []) {
+	/* Variables para la conexion y comunicacion */
 	int newsockfd;
 	struct sockaddr_in clientaddr, serveraddr;
 	int clientaddrlength;
@@ -524,14 +532,22 @@ int main(int argc, char *argv []) {
 	ParametrosHilos envio;
 	char key;
 	nombreSala = calloc(BUFFERTAM+1, sizeof(char));
-	nombreSala = "actual";
 	
-	/* Se inicializa la sala de los clientes */
+	
+	if (nombreSala == NULL) {
+		fatalerror("Error reservando memoria mediante calloc");
+	} else {
+		nombreSala = "actual";
+	}
+	
+	
+	/* Se inicializa la lista de los clientes */
 	clientes = calloc(1, sizeof(Lista));
 	if (clientes == NULL){
 		printf("Error");
 		exit(1);
 	}
+	
 	if (pthread_mutex_init(&(clientes->bodyguard), NULL) != 0) {
 		free(clientes);
 		return 0;
@@ -543,6 +559,7 @@ int main(int argc, char *argv []) {
 		printf("Error");
 		exit(1);
 	}
+	
 	if (pthread_mutex_init(&(salas->bodyguard), NULL) != 0) {
 		free(salas);
 		return 0;
