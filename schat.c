@@ -70,7 +70,7 @@ void abortarSeguro(){
 	
 	liberarCompleta(salas);
 	liberarCompleta(clientes);
-	
+	free(nombreSala);
 	close(sockfd);
 	exit(1);
 }
@@ -433,7 +433,6 @@ void *atenderCliente(ParametrosHilos *recibe){
 	ParametrosHilos *recibe2 = calloc(1, sizeof(ParametrosHilos));
 	
 	if (recibe2 == NULL){
-		free(recibe2);
 		fatalerror("No se ha podido reservar memoria mediante calloc.\n");
 	}
 	
@@ -443,9 +442,10 @@ void *atenderCliente(ParametrosHilos *recibe){
 	inicializarCliente(recibe2);
 	
 	char *comando = calloc(BUFFERTAM, sizeof(char));
-	char *respuesta = calloc(BUFFERTAM, sizeof(char));
+	char *respuesta;
 	char *respuestaBonita = calloc(BUFFERTAM,sizeof(char));
 	Item *item5;
+	char *equis;
 	
 	while (abortar == 0) {
 		/* Se lee lo enviado por el cliente */
@@ -464,7 +464,9 @@ void *atenderCliente(ParametrosHilos *recibe){
 			case 's':
 				if(comando[1] == 'a'){
 					strcpy(respuestaBonita, "Lista de salas del servidor:\n");
-					strcat(respuestaBonita, listar(salas));
+					equis = listar(salas);
+					strcat(respuestaBonita, equis);
+					free(equis);
 					respuesta = respuestaBonita;
 				} else {
 					respuesta = suscribirSala(comando+4, recibe2->nombreCliente, recibe2->newsockfd);
@@ -472,7 +474,9 @@ void *atenderCliente(ParametrosHilos *recibe){
 				break;
 			case 'u': 
 				strcpy(respuestaBonita, "Lista de clientes activos:\n");
-				strcat(respuestaBonita, listar(clientes));
+				equis = listar(clientes);
+				strcat(respuestaBonita, equis);
+				free(equis);
 				respuesta = respuestaBonita;
 				break;
 			case 'm': 
@@ -493,10 +497,10 @@ void *atenderCliente(ParametrosHilos *recibe){
 				break;
 			default:
 				printf("Error de protocolo con uno de los clientes\n");
-				free(recibe2);
 				free(respuestaBonita);
 				free(comando);
 				pthread_exit(&hilos[recibe2->id]);
+				free(recibe2);
 		}
 		
 		/* Se envia una respuesta al cliente. */
@@ -510,10 +514,10 @@ void *atenderCliente(ParametrosHilos *recibe){
 		}
 	}
 	
-	free(recibe2);
 	free(respuestaBonita);
 	free(comando);
 	pthread_exit(&hilos[recibe2->id]);
+	free(recibe2);
 }
 
 /**
@@ -538,7 +542,7 @@ int main(int argc, char *argv []) {
 	if (nombreSala == NULL) {
 		fatalerror("Error reservando memoria mediante calloc");
 	} else {
-		nombreSala = "actual";
+		strcpy(nombreSala, "actual");
 	}
 	
 	
@@ -577,7 +581,7 @@ int main(int argc, char *argv []) {
 				puerto = atoi(optarg);
 				break;
 			case 's':
-				nombreSala = optarg;
+				strcpy(nombreSala, optarg);
 				break;
 			default:
 				printf("Forma incorrecta de invocacion del programa, mejor intete: schat [-p <puerto>] [-s <sala>]\n");

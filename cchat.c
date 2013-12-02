@@ -46,7 +46,7 @@ int sockfd;
  *	abrutamente el programa 
  */
 int servidorActivo = 0;
-
+char *nombre;
 /**
  * Fin de las variables globales.
  */
@@ -69,7 +69,7 @@ void abortarSeguro(){
 	} else {
 		printf("\nEl servidor ha dejado de funcionar.\n");
 	}
-	
+	free(nombre);
 	close(sockfd);
 	exit(1);
 }
@@ -310,7 +310,7 @@ int main(int argc, char *argv[]) {
 	server = "127.0.0.1";
 	int puerto = 25504;
 	/* Variables que contienen los nombres de usuario y archivo */
-	char *nombre = calloc(BUFFERTAM+1, sizeof(char));
+	nombre = calloc(BUFFERTAM+1, sizeof(char));
 	char *archivo = NULL;
 	char key;
 	int j = BUFFERTAM;
@@ -329,7 +329,7 @@ int main(int argc, char *argv[]) {
 				puerto = atoi(optarg);
 				break;
 			case 'n':
-				nombre = optarg;
+				strcpy(nombre, optarg);
 				break;
 			case 'h':
 				server = optarg;
