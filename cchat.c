@@ -17,11 +17,35 @@
 #include <netinet/in.h>
 #include <strings.h>
 #include <string.h>
+#include <signal.h>
 #include "errors.h"
 #include <pthread.h>
 
 #define BUFFERTAM 1024
+
 pthread_mutex_t _mutex;
+pthread_t hiloRC, hiloRM;
+FILE *fp = NULL;
+int archivoActivo = 0;
+int abortar = 0;
+int sockfd;
+int servidorActivo = 0;
+
+void abortarSeguro(){
+	
+	abortar = 1;
+	if (servidorActivo == 1) {
+		if (write(sockfd, "fue", BUFFERTAM) < 0) {
+			fatalerror("can't write to socket");
+		}
+		printf("\nHasta luego (de manera abrupta).\n");
+	} else {
+		printf("\nEl servidor ha dejado de funcionar.\n");
+	}
+	
+	close(sockfd);
+	exit(1);
+}
 
 int filtrar(char *paquete) {
 	char *comando = calloc(5,sizeof(char));
@@ -51,21 +75,52 @@ int filtrar(char *paquete) {
 void *recibeComando(int *sockfd) {
 	
 	char *mensaje = calloc(BUFFERTAM+1, sizeof(char));
-	char *recibido = calloc(BUFFERTAM, sizeof(char));
 	int j = BUFFERTAM;
 	int i = 0;
 	int longMensaje;
 	
-	while (1){
+	while (abortar == 0){
 		
-		getline(&mensaje, &j, stdin);
+		if (archivoActivo == 1) {
+			if (fgets(mensaje, j, fp) == NULL) {
+				archivoActivo = 0;
+				
+				if (fclose(fp)!= 0) {
+					printf( "Problemas al cerrar el fichero\n" );
+				}
+			}
+		} 
+		if (archivoActivo == 0) {
+			getline(&mensaje, &j, stdin);
+			if (abortar == 1){
+				free(mensaje);
+				pthread_exit(&hiloRC);
+			}
+		}
 		longMensaje = strlen(mensaje) - 1;
-		mensaje[longMensaje] = '\0';
+		
+		if (mensaje[longMensaje] == '\n') {
+			mensaje[longMensaje] = '\0';
+		}
 		
 		if(filtrar(mensaje)) {
 		
 			if (write(*sockfd, mensaje, BUFFERTAM) < 0) {
-				fatalerror("can't write to socket");
+				servidorActivo = 0;
+				free(mensaje);
+				abortarSeguro();
+			}
+		
+			
+			if (strcmp(mensaje, "fue") == 0) {
+				if (archivoActivo == 1) {
+					if (fclose(fp)!= 0) {
+						printf( "Problemas al cerrar el fichero\n" );
+					}
+				}
+				archivoActivo = 0;
+				abortar = 1;
+				break;
 			}
 			
 		} else {
@@ -86,32 +141,64 @@ void *recibeComando(int *sockfd) {
 			"fue: Este comando permite terminar l\n");
 		}
 	}
+		
+	if (archivoActivo == 1) {
+		if (fclose(fp)!= 0) {
+			printf( "Problemas al cerrar el fichero\n" );
+		}
+	}
+	free(mensaje);
+	pthread_exit(&hiloRC);
 }
 
 void *recibeMensaje(int *sockfd){
 	char *recibido = calloc(BUFFERTAM, sizeof(char));
 	int i;
-	while(1){
+	while(abortar == 0){
 		
 		if (read(*sockfd, recibido, BUFFERTAM) < 0) {
-			fatalerror("can't read from socket");
+			servidorActivo = 0;
+			free(recibido);
+			abortarSeguro();
 		}
 		
+		if (abortar == 1){
+			free(recibido);
+			pthread_exit(&hiloRM);
+		}
+		
+		if (strcmp(recibido, "fue") == 0) {
+			
+			// Caso en el que el servidor aborta.
+			if(abortar == 0){
+				servidorActivo = 0;
+				abortar = 1;
+				abortarSeguro();
+				free(recibido);
+				pthread_exit(&hiloRM);
+			} else {
+				// Caso en el que el cliente aborta.
+				break;
+			}
+		}
 		
 		printf("%s", recibido);
 	}
+	
+	free(recibido);
+	pthread_exit(&hiloRM);
 }
 
 void copy(int sockfd) {
-	pthread_t hiloRC, hiloRM;
 	pthread_create(&hiloRC, NULL, (void *)recibeComando, &sockfd);
 	pthread_create(&hiloRM, NULL, (void *)recibeMensaje, &sockfd);
 	pthread_join(hiloRC, NULL);
 	pthread_join(hiloRM, NULL);
+	printf("Hasta luego.\n");
 }
 
 int main(int argc, char *argv[]) {
-	int sockfd;
+	
 	int identidadValida = 0;
 	struct sockaddr_in serveraddr;
 	char *server;
@@ -120,7 +207,6 @@ int main(int argc, char *argv[]) {
 	char *nombre = calloc(BUFFERTAM+1, sizeof(char));
 	char *archivo = NULL;
 	char key;
-	FILE *fp = NULL;
 	char line[BUFFERTAM];
 	int j = BUFFERTAM;
 	int lenNombre;
@@ -151,6 +237,9 @@ int main(int argc, char *argv[]) {
 			}
 	}
 
+		
+	signal(SIGINT, abortarSeguro);
+	
 	/* Get the address of the server. */
 	bzero(&serveraddr, sizeof(serveraddr));
 	serveraddr.sin_family = AF_INET;
@@ -166,6 +255,8 @@ int main(int argc, char *argv[]) {
 	if (connect(sockfd, (struct sockaddr *) &serveraddr,
 				sizeof(serveraddr)) < 0)
 		fatalerror("can't connect to server");
+	
+	servidorActivo = 1;
 	
 	/* Enviamos el nombre del cliente al socket */
 	while( strcmp(nombre, "") == 0 ){
@@ -204,29 +295,21 @@ int main(int argc, char *argv[]) {
 	} 
 	
 	printf("%s, bienvenido al chat.\n", nombre);
-		
+	
   /*Lectura de archivo*/
 	if (archivo != NULL){
-		
+		archivoActivo = 1;
 		/*Se abre el archivo.*/ 
 		if ( (fp = fopen(archivo, "r")) == NULL) {
 			printf ( " Error en la apertura del archivo. Es posible que el fichero no"
 						" exista\n");
-		} else {
-			while (fgets(line, sizeof(line), fp)) {
-				printf("%s", line); 
-			}
-			
-			if (fclose(fp)!= 0) {
-				printf( "Problemas al cerrar el fichero\n" );
-			}
 		}
 		
 	}
+	
   /* Copy input to the server. */
-  copy(sockfd);
-  close(sockfd);
-
-  exit(EXIT_SUCCESS);
+	copy(sockfd);
+	close(sockfd);
+	exit(EXIT_SUCCESS);
 }
 

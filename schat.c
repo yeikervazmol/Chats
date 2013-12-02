@@ -11,6 +11,7 @@
 
 #include "Servidor.h"
 #include "Lista.h"
+#include <signal.h>
 
 #define BUFFERTAM 1024
 
@@ -27,6 +28,36 @@ int puerto = 25504;
 Lista *clientes;
 Lista *salas;
 char *nombreSala;
+int abortar = 0;
+int sockfd;
+pthread_t hilos[50]; /* arreglo que contendra todos los hilos.*/
+
+void abortarSeguro(){
+	Item *cliente;
+	int i;
+	abortar = 1;
+	
+	cliente = clientes->primero;
+	
+	while (cliente != NULL) {
+		if (write(cliente->sockfd,"fue", BUFFERTAM) < 0){
+				fatalerror("can't write to socket");
+		}
+		cliente = cliente->ApSig;
+	}
+	
+	printf("\nTus clientes han sido advertidos acerca de esta interrupcion.\n");
+	
+	for (i = 0; i < hilosEnArreglo; i++) {
+		pthread_join(hilos[i], NULL);
+	}
+	
+	liberarCompleta(salas);
+	liberarCompleta(clientes);
+	
+	close(sockfd);
+	exit(1);
+}
 
 void *inicializarCliente(ParametrosHilos *recibe){
 	
@@ -155,7 +186,7 @@ char *enviarMensaje(char *mensaje,char *nombreUsuario){
 		aux = aux->ApSig;
 	}
 	free(mensajeBonito);
-	return "\n";
+	return "";
 }
 
 char *desuscribirSala(char *nombreCliente){
@@ -187,7 +218,7 @@ char *desuscribirSala(char *nombreCliente){
 		eliminar(cliente->listaInterna, ant);
 	}
 
-	return "Se ha desuscrito de todas sus salas con exito.";
+	return "Se ha desuscrito de todas sus salas con exito.\n";
 }
 
 char *crearSala(char *nombreSala){
@@ -262,7 +293,7 @@ char *eliminarSala(char *sala){
 	}
 }
 
-void *abandonarCliente(char *nombreCliente){	
+void abandonarCliente(char *nombreCliente){	
  	Item *item5;
 	
 	desuscribirSala(nombreCliente);
@@ -294,9 +325,14 @@ void *atencionCliente(ParametrosHilos *recibe){
 	char *respuestaBonita = calloc(BUFFERTAM,sizeof(char));
 	Item *item5;
 	
-	while(1){
+	while (abortar == 0) {
 		if (read(recibe2->newsockfd, comando, BUFFERTAM) < 0) {
 			fatalerror("can't read the socket");
+		}
+		if (abortar == 1){
+			free(comando);
+			free(respuesta);
+			pthread_exit(&hilos[recibe2->id]);
 		}
 		printf("This is what I recieved: %s\n", comando);
 		
@@ -319,7 +355,7 @@ void *atencionCliente(ParametrosHilos *recibe){
 				respuesta = enviarMensaje(comando + 4, recibe2->nombreCliente);
 				break;
 			case 'd': 
-				desuscribirSala(recibe2->nombreCliente);
+				respuesta = desuscribirSala(recibe2->nombreCliente);
 				break;
 			case 'c':
 				respuesta = crearSala(comando + 4);
@@ -328,33 +364,35 @@ void *atencionCliente(ParametrosHilos *recibe){
 				respuesta = eliminarSala(comando + 4);
 				break;
 			case 'f': 
-				respuesta = abandonarCliente(recibe2->nombreCliente);
+				strcpy(respuestaBonita, comando);
+				respuesta = respuestaBonita;
 				break;
 			default:
-				printf("Error de protocolo con el cliente\n");
-				break;
+				printf("Error de protocolo con uno de los clientes\n");
+				free(comando);
+				free(respuesta);
+				pthread_exit(&hilos[recibe2->id]);
 		}
 		
-		if (comando[0] != 'f') {
-			if (write(recibe2->newsockfd, respuesta, BUFFERTAM) < 0){
+		if (write(recibe2->newsockfd, respuesta, BUFFERTAM) < 0){
 				fatalerror("can't write to socket");
-			} 
-			printf("This is my answer: %s\n", respuesta);
-		} else {
+		}
+		
+		if (comando[0] == 'f') {
+			abandonarCliente(recibe2->nombreCliente);
 			break;
 		}
 	}
 	
 	free(comando);
 	free(respuesta);
-	return;
+	pthread_exit(&hilos[recibe2->id]);
 }
 
 int main(int argc, char *argv []) {	
-	int sockfd, newsockfd;
+	int newsockfd;
 	struct sockaddr_in clientaddr, serveraddr;
 	int clientaddrlength;
-	pthread_t hilos[MAXHILOS]; /* arreglo que contendra todos los hilos.*/
 	int i = 0;
 	ParametrosHilos envio;
 	pthread_mutex_init(&count_mutex, NULL);
@@ -420,6 +458,7 @@ int main(int argc, char *argv []) {
 		}
 	}
 	
+	signal(SIGINT, abortarSeguro);
 	
 	/* Abre el socket TCP. */
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -458,7 +497,6 @@ int main(int argc, char *argv []) {
 		}
 		
 		envio.id = hilosEnArreglo++;
-		printf("hilosActivos %d\n",hilosEnArreglo);
 		hilosActivos++;
 		envio.newsockfd = newsockfd;
 		if ((pthread_create(&hilos[i], NULL, (void *)atencionCliente, (void *)&envio)) != 0){
@@ -467,12 +505,5 @@ int main(int argc, char *argv []) {
 		
 		
 	}
-	
-	
-	for (i = 0; i < MAXHILOS; i++) {
-		pthread_join(hilos[i], NULL);
-	}
-	
-	
-	printf("\nFin\n");
+		
 }

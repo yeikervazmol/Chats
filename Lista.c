@@ -155,6 +155,7 @@ char *listar(Lista *lista) {
 		if(aux != NULL) {
 			
 			while(aux != NULL) {
+				strcat(elementos, "\t");
 				strcat(elementos, aux->name);
 				strcat(elementos, "\n");
 				aux = aux->ApSig;	
