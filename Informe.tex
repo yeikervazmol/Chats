@@ -23,19 +23,20 @@ Se utiliza el protocolo TCP dado que se debe tener la certeza de que todos los p
 
 \section{Decisiones de diseño}
 \begin{itemize}
-\item Cuando un usuario crea una sala con el comando cre, dicha sala es creada sin embargo el usuario no se suscribe a ella automáticamente.
-\item Un usuario puede estar suscrito en varias salas a la vez; por ello, al utilizar el comando men se envía ese mensaje a todas las salas a las que este suscrito.
+\item Cuando un usuario crea una sala con el comando 'cre', dicha sala es creada sin embargo el usuario no se suscribe a ella automáticamente.
+\item Un usuario puede estar suscrito a varias salas a la vez; por ello, al utilizar el comando 'men' se envía ese mensaje a todas las salas a las que este suscrito.
 \item Cuando un usuario decide salirse de la aplicación las salas que ha creado permanecen funcionales en el servidor.
-\item Las interrupciones de schat y cchat (utilizando Control+C) son manejadas utilizando un protocolo de salida que permite liberar la memoria alocada y hacer saber al servidor o al cliente, segun sea el caso, que se está abortando de forma abrupta.
+\item Las interrupciones de schat y cchat (utilizando Control+C) son manejadas utilizando un protocolo de salida que permite liberar la memoria alocada y hacer saber al servidor o al cliente, según sea el caso, que se está abortando de forma abrupta.
 \item Se utilizan hilos para lograr la concurrencia dado que la memoria compartida permite que el manejo de la información general en el servidor (salas y clientes) sea sencilla.
 \item Se utiliza una lista simplemente enlazada que puede ser manipulada por múltiples hilos de forma correcta utilizando mutex.
 \item El archivo que contiene comandos debe cumplir con las sintaxis normal de los comandos además de ser exactamente un comando por línea.
 \item No se permite que la sala predeterminada sea eliminada.
+\item Se permite un maximo de 50 clientes y paquetes de 1024 bytes. Esto puede cambiarse facilemente asignando distintos valores a las constantes MAXHILOS y BUFFERTAM.
 \end{itemize}
 
 \section{Observaciones}
 \begin{itemize}
-\item Se cumplen con todos los requerimientos del enunciado.
+\item Se cumple con todos los requerimientos del enunciado.
 \item El código está comentado utilizando los estándares Java Doc al igual que sigue las buenas prácticas en C.
 \end{itemize}
 
