@@ -129,7 +129,7 @@ void liberarCompleta(Lista *lista) {
 		}
 		pthread_mutex_unlock(&(lista->bodyguard));
 		pthread_mutex_destroy(&(lista->bodyguard));
-		free(lista);
+		//free(lista);
 	}
 }
 

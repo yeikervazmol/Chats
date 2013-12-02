@@ -418,7 +418,6 @@ int main(int argc, char *argv[]) {
 	
   /* Copy input to the server. */
 	iniciarConcurrencia(sockfd);
-	free(nombre);
 	close(sockfd);
 	exit(EXIT_SUCCESS);
 }

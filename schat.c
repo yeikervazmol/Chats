@@ -70,6 +70,7 @@ void abortarSeguro(){
 	
 	liberarCompleta(salas);
 	liberarCompleta(clientes);
+	
 	close(sockfd);
 	exit(1);
 }
