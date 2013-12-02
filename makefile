@@ -1,3 +1,16 @@
+#
+# @author Karen Troiano		09-10855
+# @author Yeiker Vazquez	09-10855
+# @grupo  
+#
+# Archivo -> makefile
+#
+# Descripcion ->  Contiene el archivo que compila
+#	todos los elementos necesarios para el
+#	programa.
+#
+#
+
 CC = gcc
 CFLAGS = -g
 

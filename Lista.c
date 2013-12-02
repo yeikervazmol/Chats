@@ -1,12 +1,12 @@
-/*
-* @author Karen Troiano && Yeiker Vazquez
-* @carnet 09-10855 && 09-10855
+/**
+* @author Karen Troiano		09-10855
+* @author Yeiker Vazquez	09-10855
 * @grupo  
 *
 * Archivo: Lista.c
 *
-* Descripcion: Contiene el programa principal del
-* servidor del chat.
+* Descripcion: Contiene las funciones necesarias para
+* el control las estructuras de listas.
 */
 
 #include <stdio.h>
@@ -15,15 +15,16 @@
 #include "Lista.h"
 #include "errors.h"
 
-
-pthread_t hilos[10];
-Lista *miLista;
-
-/* Se debe ser precavido con esta funcion ya que no abre y cierra
- el lock para hilos de la lista ya que es llamada por otras funciones
- que se encargan de eso. Por ello si se usa la funcion directamente
- se deben realizar los lock y unlock antes y despues de usar la
- funcion.*/
+/**
+ * Funcion encargada de la busqueda de un elemento en la lista.
+ * 
+ * @param La lista en la cual sera buscado el elemento.
+ * @param El elemento a ser buscado.
+ * @return Devuelve el item del objeto buscado.
+ * 
+ * * Esta funcion no se encuentra protegida por los mutex.
+ * 
+ */
 Item *buscar(Lista *lista, char *tesoro) {
 	if(lista != NULL) {
 		Item *aux;
@@ -39,7 +40,19 @@ Item *buscar(Lista *lista, char *tesoro) {
 	}
 	return NULL;
 }
-	
+
+/**
+ * Funcion encargada de insertar un elemento en la lista.
+ * 
+ * @param La lista en la cual sera insertado el elemento.
+ * @param El nombre del elemento a ser insertado.
+ * @param El numero del socket del cliente. En caso de ser
+ *	una sala, se recibe 0.
+ * @return Devuelve 1 si inserta con exito, 0 en caso contrario.
+ * 
+ * * Esta funcion se encuentra protegida por los mutex.
+ * 
+ */
 int insertar(Lista *lista, char *name, int sockfd) {
 	if (lista != NULL){
 		pthread_mutex_lock(&(lista->bodyguard));
@@ -94,8 +107,15 @@ int insertar(Lista *lista, char *name, int sockfd) {
 	}
 }
 
-void liberarCompleta(Lista *lista)
-{
+/**
+ * Funcion encargada de liberar la memoria reservada por la lista.
+ * 
+ * @param La lista en la cual sera destruida.
+ * 
+ * * Esta funcion se encuentra protegida por los mutex.
+ * 
+ */
+void liberarCompleta(Lista *lista) {
 	if (lista != NULL){
 		pthread_mutex_lock(&(lista->bodyguard));
 		Item *aux = lista->primero;
@@ -113,6 +133,16 @@ void liberarCompleta(Lista *lista)
 	}
 }
 
+
+/**
+ * Funcion encargada eliminar el objeto especifico.
+ * 
+ * @param La lista en la cual se eliminara el elemento.
+ * @param El item el cual sera eliminado.
+ * 
+ * * Esta funcion se encuentra protegida por los mutex.
+ * 
+ */
 void eliminar(Lista *lista, Item *sentenciado) {
 	if (lista != NULL){
 		pthread_mutex_lock(&(lista->bodyguard));
@@ -145,6 +175,18 @@ void eliminar(Lista *lista, Item *sentenciado) {
 
 }
 
+
+/**
+ * Funcion encargada de listar los nombres de los elementos 
+ * 	de una lista.
+ * 
+ * @param La lista en la cual sera impresa.
+ * @return Un string con todos los nombres de los elementos de
+ * 	la lista.
+ * 
+ * * Esta funcion se encuentra protegida por los mutex.
+ * 
+ */
 char *listar(Lista *lista) {
 	
 	char *elementos = calloc(100*40, sizeof(char));

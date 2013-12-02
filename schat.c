@@ -1,7 +1,7 @@
-/*
-* @author Karen Troiano && Yeiker Vazquez
-* @carnet 09-10855 && 09-10855
-* @grupo  09
+/**
+* @author Karen Troiano		09-10855
+* @author Yeiker Vazquez	09-10855
+* @grupo  
 *
 * Archivo: schat.c
 *
@@ -11,27 +11,43 @@
 
 #include "Servidor.h"
 #include "Lista.h"
-#include <signal.h>
 
 #define BUFFERTAM 1024
 
 const int MAXHILOS = 50;
-const int CARACTERES = 140;
 
-pthread_mutex_t count_mutex;
-pthread_mutex_t _mutex;
+/**
+ * Variables globales que seran compartidas por los hilos.
+ */
 
-int hilosLector[50]; /* arreglo para manejar las lecturas de los hilos.*/
-int hilosEnArreglo = 0;
-int hilosActivos = 0;
+/* Cantidad de hilos en el arrglo. */
+int hilosEnArreglo = 0; 
+/* Numero del puerto de la conecxion por defecto */
 int puerto = 25504;
+/* Listas de salas y clientes activos. */
 Lista *clientes;
 Lista *salas;
 char *nombreSala;
+/* 
+ * Variable para saber si el servidor ha abortado 
+ *	abrutamente el programa.
+ */
 int abortar = 0;
+/* Variable del socket del servidor */
 int sockfd;
 pthread_t hilos[50]; /* arreglo que contendra todos los hilos.*/
 
+/**
+ * Fin de las variables globales.
+ */
+
+/**
+ * 
+ * Funcion encargada de abortar ejecucion si el
+ * 	servidor envia una interrupcion al programa
+ * 	durante su ejecucion.
+ * 
+ */
 void abortarSeguro(){
 	Item *cliente;
 	int i;
@@ -59,6 +75,14 @@ void abortarSeguro(){
 	exit(1);
 }
 
+/**
+ * Funcion encargada de inicializar al cliente al entrar
+ * 	por primera vez al servidor.
+ * 
+ * @param Estructura con el id del hilo, el nombre del cliente y 
+ * 	su correspondido socket.
+ * 
+ */
 void *inicializarCliente(ParametrosHilos *recibe){
 	
 	int nombreValido = 0;
@@ -66,6 +90,7 @@ void *inicializarCliente(ParametrosHilos *recibe){
 	Item *salaPredeterminada;
 	Item *clienteActual;
 	
+	/* Se obliga a tener un nombre unico de usuario */
 	while(nombreValido == 0	){
 		if (read(recibe->newsockfd, nombreCliente, BUFFERTAM) < 0) {
 			fatalerror("can't listen to socket");
@@ -98,6 +123,7 @@ void *inicializarCliente(ParametrosHilos *recibe){
 	
 	recibe->nombreCliente = nombreCliente;
 	
+	/* Se inserta el nuevo cliente a la sala predeterminada */
 	pthread_mutex_lock(&(salas->bodyguard));
 	salaPredeterminada = buscar(salas, nombreSala);
 	pthread_mutex_unlock(&(salas->bodyguard));
@@ -105,6 +131,11 @@ void *inicializarCliente(ParametrosHilos *recibe){
 		fatalerror("No se pudo asociar un cliente a su sala.\n");
 	}
 	
+	/**
+	 * Se inserta el nuevo cliente a la lista de clientes activos y 
+	 * se le agrega en su lista interna que pertenece a la sala 
+	 * predeterminada
+	 */
 	pthread_mutex_lock(&(clientes->bodyguard));
 	clienteActual = buscar(clientes, nombreCliente);
 	pthread_mutex_unlock(&(clientes->bodyguard));
@@ -116,10 +147,20 @@ void *inicializarCliente(ParametrosHilos *recibe){
 	return;
 }
 
+/**
+ * Funcion encargada de suscribir un cliente a una sala.
+ * 
+ * @param Nombre de la sala a la cual sera insertado el usuario.
+ * @param El nombre del usuario a ser insertado.
+ * @param El numero del socket del usuario a ser insertado.
+ * @return String con la respuesta del servidor al cliente.
+ * 
+ */
 char *suscribirSala(char *salaSus, char *nombreCliente, int sockfd){
 	
 	Item *item;
 	
+	/* Se agrega en la lista interna de las salas el cliente. */
 	pthread_mutex_lock(&(salas->bodyguard));
 	item = buscar(salas, salaSus);
 	pthread_mutex_unlock(&(salas->bodyguard));
@@ -133,6 +174,7 @@ char *suscribirSala(char *salaSus, char *nombreCliente, int sockfd){
 		return "Lo sentimos, no puedo suscribirse a dicha sala por problemas en el servidor.\n";
 	}
 	
+	/* Se agrega en la lista interna del cliente la sala. */
 	pthread_mutex_lock(&(clientes->bodyguard));
 	item = buscar(clientes, nombreCliente);
 	pthread_mutex_unlock(&(clientes->bodyguard));
@@ -144,10 +186,18 @@ char *suscribirSala(char *salaSus, char *nombreCliente, int sockfd){
 	if( insertar(item->listaInterna, salaSus, sockfd) == 0){
 		return "Lo sentimos, no puedo suscribirse a dicha sala por problemas en el servidor.\n";
 	}
-		
+	
 	return "Usted se ha sido suscrito a la sala con exito.\n";	
 }
 
+/**
+ * Funcion encargada de enviar un mensaje a los clientes.
+ * 
+ * @param Mensaje a ser enviado.
+ * @param El nombre del usuario quien envia el mensaje.
+ * @return String con la respuesta del servidor al cliente.
+ * 
+ */
 char *enviarMensaje(char *mensaje,char *nombreUsuario){
 	Item *cliente;
 	Item *aux;
@@ -155,6 +205,13 @@ char *enviarMensaje(char *mensaje,char *nombreUsuario){
 	Item *usuarioDestino;
 	char *mensajeBonito = calloc(BUFFERTAM, sizeof(char));
 
+	/**
+	 * Se busca el cliente que envio el mensaje
+	 *	se busca en su lista interna las salas a las
+	 * 	que pertenece. Se envia el mensaje a las
+	 * 	personas que estan suscritas a las salas que
+	 * 	pertenece el mismo usuario.
+	 */
 	pthread_mutex_lock(&(clientes->bodyguard));
 	cliente = buscar(clientes, nombreUsuario);
 	pthread_mutex_unlock(&(clientes->bodyguard));
@@ -189,13 +246,26 @@ char *enviarMensaje(char *mensaje,char *nombreUsuario){
 	return "";
 }
 
+/**
+ * Funcion encargada de desuscribir un cliente a todas las salas.
+ * 
+ * @param El nombre del usuario a ser desuscrito.
+ * @return String con la respuesta del servidor al cliente.
+ * 
+ */
 char *desuscribirSala(char *nombreCliente){
 	Item *cliente;
 	Item *aux;
 	Item *sala;
 	Item *sentenciado;
 	Item *ant;
-
+	
+	/**
+	 * Se busca el cliente en la lista de clientes,
+	 * 	de su lista interna se obitenen las salas,
+	 * 	se busca en esas salas para eliminar al cliente
+	 * 	de las listas internas. 
+	 */
 	pthread_mutex_lock(&(clientes->bodyguard));
 	cliente = buscar(clientes, nombreCliente);
 	pthread_mutex_unlock(&(clientes->bodyguard));
@@ -221,12 +291,23 @@ char *desuscribirSala(char *nombreCliente){
 	return "Se ha desuscrito de todas sus salas con exito.\n";
 }
 
+/**
+ * Funcion encargada de crear una sala.
+ * 
+ * @param Nombre de la sala la cual sera insertada en la lista
+ * 	de salas activas.
+ * @return String con la respuesta del servidor al cliente.
+ * 
+ */
 char *crearSala(char *nombreSala){
 	int i;
 	Item *item;
 	
 	i = insertar(salas, nombreSala, 0);
 
+	/**
+	 * Al insertar en la lista se inicializa la lista interna.
+	 */
 	if (i == 1) {
 		pthread_mutex_lock(&(salas->bodyguard));
 		item = buscar(salas, nombreSala);
@@ -250,6 +331,14 @@ char *crearSala(char *nombreSala){
 	return "Sala creada con exito.\n";
 }
 
+/**
+ * Funcion encargada de eliminar una sala.
+ * 
+ * @param Nombre de la sala la cual sera eliminada en la lista
+ * 	de salas activas.
+ * @return String con la respuesta del servidor al cliente.
+ * 
+ */
 char *eliminarSala(char *sala){
 	Item *item;
 	
@@ -257,12 +346,18 @@ char *eliminarSala(char *sala){
 		return "No puede eliminar la sala predeterminada del chat\n";
 	}
 	
+	/* Se busca la sala a ser eliminada */
 	pthread_mutex_lock(&(salas->bodyguard));
 	item = buscar(salas, sala);
 	pthread_mutex_unlock(&(salas->bodyguard));
 	if (item == NULL) {
 		return "No se pudo eliminar la sala por problemas internos en el servidor.\n";
 	} else {
+		/**
+		 * Se limpia la lista interna de la sala y se 
+		 *	eliminan de las salas internas de los usuarios
+		 * 	los cuales estaban suscritos a la sala.
+		 */
 		
 		Item *cliente;
 		Item *aux;
@@ -293,8 +388,16 @@ char *eliminarSala(char *sala){
 	}
 }
 
+/**
+ * Funcion encargada de la eliminacion de un cliente.
+ * 
+ * @param Nombre del cliente.
+ * 
+ */
 void abandonarCliente(char *nombreCliente){	
  	Item *item5;
+	
+	/* Se desuscribe al cliente de todas las salsa que pertene */
 	
 	desuscribirSala(nombreCliente);
 	
@@ -302,11 +405,22 @@ void abandonarCliente(char *nombreCliente){
 	item5 = buscar(clientes, nombreCliente);
 	pthread_mutex_unlock(&(clientes->bodyguard));
 	
+	/* Se elimina el cliente de los usuarios activos. */
 	eliminar(clientes,item5);
 	return;
  }
 
-void *atencionCliente(ParametrosHilos *recibe){
+/**
+ * 
+ * Funcion encargada de la atencion al cliente. 
+ * 
+ * @param Escructura que contiene:
+ * * El id del hilo.
+ * * El nombre del cliente.
+ * * El socket del cliente.
+ * 
+ */
+void *atenderCliente(ParametrosHilos *recibe){
 	
 	ParametrosHilos *recibe2 = calloc(1, sizeof(ParametrosHilos));
 	
@@ -326,6 +440,7 @@ void *atencionCliente(ParametrosHilos *recibe){
 	Item *item5;
 	
 	while (abortar == 0) {
+		/* Se lee lo enviado por el cliente */
 		if (read(recibe2->newsockfd, comando, BUFFERTAM) < 0) {
 			fatalerror("can't read the socket");
 		}
@@ -334,8 +449,11 @@ void *atencionCliente(ParametrosHilos *recibe){
 			free(respuesta);
 			pthread_exit(&hilos[recibe2->id]);
 		}
-		printf("This is what I recieved: %s\n", comando);
 		
+		/**
+		 * Se verifica cual comando es enviado para cumplir
+		 * con la funcion especifica de cada uno
+		 */
 		switch (comando[0]) {
 			case 's':
 				if(comando[1] == 'a'){
@@ -374,6 +492,7 @@ void *atencionCliente(ParametrosHilos *recibe){
 				pthread_exit(&hilos[recibe2->id]);
 		}
 		
+		/* Se envia una respuesta al cliente. */
 		if (write(recibe2->newsockfd, respuesta, BUFFERTAM) < 0){
 				fatalerror("can't write to socket");
 		}
@@ -389,14 +508,20 @@ void *atencionCliente(ParametrosHilos *recibe){
 	pthread_exit(&hilos[recibe2->id]);
 }
 
+/**
+ * Funcion principal del schat, encargada de la
+ *	conexion del cliente al servidor. 
+ * 
+ * @param Cantidad de argumentos enviados.
+ * @param Argumentos enviados.
+ * 
+ */
 int main(int argc, char *argv []) {	
 	int newsockfd;
 	struct sockaddr_in clientaddr, serveraddr;
 	int clientaddrlength;
 	int i = 0;
 	ParametrosHilos envio;
-	pthread_mutex_init(&count_mutex, NULL);
-	pthread_mutex_init(&_mutex, NULL);
 	char key;
 	nombreSala = calloc(BUFFERTAM+1, sizeof(char));
 	nombreSala = "actual";
@@ -465,7 +590,7 @@ int main(int argc, char *argv []) {
 	if (sockfd < 0){
 		fatalerror("No abre el socket D:");
 	}
-	/* Bind the address to the socket. */
+	/* Exprerando por el socket. */
 	bzero(&serveraddr, sizeof(serveraddr));
 	serveraddr.sin_family = AF_INET;
 	serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -480,26 +605,19 @@ int main(int argc, char *argv []) {
 	}
 	
 	for (i = 0; i < MAXHILOS; i++) {
-		hilosLector[i] = 1;
-	}
-	
-	for (i = 0; i < MAXHILOS; i++) {
-		/* Wait for a connection. */
+		/* Esperando por la conecxion. */
 		clientaddrlength = sizeof(clientaddr);
-		printf("Esperando nuevo cliente\n");
 		newsockfd = accept(sockfd, 
 						(struct sockaddr *) &clientaddr,
 						&clientaddrlength);
-		printf("Cliente Nuevo\n");
 		
 		if (newsockfd < 0){
 			fatalerror("accept failure");
 		}
 		
 		envio.id = hilosEnArreglo++;
-		hilosActivos++;
 		envio.newsockfd = newsockfd;
-		if ((pthread_create(&hilos[i], NULL, (void *)atencionCliente, (void *)&envio)) != 0){
+		if ((pthread_create(&hilos[i], NULL, (void *)atenderCliente, (void *)&envio)) != 0){
 			fatalerror("Error catastrofico creando hilo :OOO");
 		}
 		

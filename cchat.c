@@ -1,13 +1,14 @@
-/*
-* @author Karen Troiano && Yeiker Vazquez
-* @carnet 09-10855 && 09-10855
-* @grupo  09
+/**
+* @author Karen Troiano		09-10855
+* @author Yeiker Vazquez	09-10855
+* @grupo  
 *
 * Archivo: cchat.c
 *
 * Descripcion: Contiene el programa principal del
 * cliente del chat.
 */
+
 #include <ctype.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -23,14 +24,40 @@
 
 #define BUFFERTAM 1024
 
-pthread_mutex_t _mutex;
-pthread_t hiloRC, hiloRM;
+/**
+ * Variables globales que seran compartidas por los hilos.
+ */
+
+/* Hilos utilizados para escritura y lectura al servidor */
+pthread_t hiloEC, hiloRM; 
+/* Filedescriptor del archivo que podrian enviar */
 FILE *fp = NULL;
+/* Variable para saber si se lee de archivo o entrada estandar. */
 int archivoActivo = 0;
+/* 
+ * Variable para saber si el cliente ha abortado 
+ *	abrutamente el programa 
+ */
 int abortar = 0;
+/* Variable del socket del cliente */
 int sockfd;
+/* 
+ * Variable para saber si el cliente ha servidor 
+ *	abrutamente el programa 
+ */
 int servidorActivo = 0;
 
+/**
+ * Fin de las variables globales.
+ */
+
+/**
+ * 
+ * Funcion encargada de abortar ejecucion si el
+ * 	cliente envia una interrupcion al programa
+ * 	durante su ejecucion.
+ * 
+ */
 void abortarSeguro(){
 	
 	abortar = 1;
@@ -47,8 +74,20 @@ void abortarSeguro(){
 	exit(1);
 }
 
+/**
+ * Funcion encargada de filtrar malos comandos hacia el servidor.
+ * 
+ * @param El comando a ser verificado.
+ * @return Devuelve 1 si el comando esta correcto, 0 en caso
+ *	 contrario.
+ * 
+ */
 int filtrar(char *paquete) {
 	char *comando = calloc(5,sizeof(char));
+	/**
+	 * Tomamos solo las 3 o 4 primeras palabras del
+	 * 	comando para saber si es correcto.
+	 */
 	if (strlen(paquete) == 3) {
 		strncpy(comando, paquete, 3);
 		comando[4] = '\0';
@@ -56,6 +95,10 @@ int filtrar(char *paquete) {
 		strncpy(comando, paquete, 4);
 		comando[5] = '\0';
 	}
+	/**
+	 * Comparamos lo recibido con lo permitido del
+	 * 	chat para ejecutar comandos.
+	 */
 	if( (strcmp(comando, "sal") == 0)
 		||	(strcmp(comando, "usu") == 0)
 		|| 	(strcmp(comando, "men ") == 0)
@@ -72,46 +115,67 @@ int filtrar(char *paquete) {
 	}
 }
 
-void *recibeComando(int *sockfd) {
+/**
+ * Funcion encargada de recibir un comando por archivo o terminal,
+ * 	filtrar el mensaje para verificar su correctitud y envia al
+ * 	servidor dicho mensaje para su debida respuesta. 
+ * 
+ * @param El numero del socket del cliente. 
+ * 
+ */
+void *enviarComando(int *sockfd) {
 	
 	char *mensaje = calloc(BUFFERTAM+1, sizeof(char));
 	int j = BUFFERTAM;
 	int i = 0;
 	int longMensaje;
 	
+	/* Se escribe hasta que el programa aborte abrutamente */
 	while (abortar == 0){
 		
+		/* Si existe el archivo leemos linea por linea */
 		if (archivoActivo == 1) {
 			if (fgets(mensaje, j, fp) == NULL) {
 				archivoActivo = 0;
-				
+				/* Se cierra el archivo pues termina su lectura */
 				if (fclose(fp)!= 0) {
 					printf( "Problemas al cerrar el fichero\n" );
 				}
 			}
 		} 
+		/**
+		 * Si el archivo no existe o se leyo completamente, se 
+		 * espera por entrada estandar para esperar por los nuevos 
+		 * comandos 
+		 */
 		if (archivoActivo == 0) {
 			getline(&mensaje, &j, stdin);
 			if (abortar == 1){
 				free(mensaje);
-				pthread_exit(&hiloRC);
+				pthread_exit(&hiloEC);
 			}
 		}
+		
 		longMensaje = strlen(mensaje) - 1;
 		
 		if (mensaje[longMensaje] == '\n') {
 			mensaje[longMensaje] = '\0';
 		}
 		
+		/* Se verifica la correctitud del mensaje enviado */
 		if(filtrar(mensaje)) {
-		
+			
+			/** 
+			 * Se escribe en el socket el mensaje a ser enviado
+			 * al servidor.
+			 */
 			if (write(*sockfd, mensaje, BUFFERTAM) < 0) {
 				servidorActivo = 0;
 				free(mensaje);
 				abortarSeguro();
 			}
 		
-			
+			/* Si el comando es fue, se intenta abortar ejecucion */
 			if (strcmp(mensaje, "fue") == 0) {
 				if (archivoActivo == 1) {
 					if (fclose(fp)!= 0) {
@@ -148,14 +212,23 @@ void *recibeComando(int *sockfd) {
 		}
 	}
 	free(mensaje);
-	pthread_exit(&hiloRC);
+	pthread_exit(&hiloEC);
 }
 
-void *recibeMensaje(int *sockfd){
+/**
+ * Funcion encargada de recibir un mensaje del servidor e 
+ * 	imprimirlo por salida estandar.
+ * 
+ * @param El numero del socket del cliente. 
+ * 
+ */
+void *recibirMensaje(int *sockfd){
 	char *recibido = calloc(BUFFERTAM, sizeof(char));
-	int i;
+	
+	/* Hasta que no se corte la ejecucion abrutamente hacer */
 	while(abortar == 0){
 		
+		/* Se lee esperando por el servidor */
 		if (read(*sockfd, recibido, BUFFERTAM) < 0) {
 			servidorActivo = 0;
 			free(recibido);
@@ -169,7 +242,7 @@ void *recibeMensaje(int *sockfd){
 		
 		if (strcmp(recibido, "fue") == 0) {
 			
-			// Caso en el que el servidor aborta.
+			/* Caso en el que el servidor aborta. */
 			if(abortar == 0){
 				servidorActivo = 0;
 				abortar = 1;
@@ -177,11 +250,11 @@ void *recibeMensaje(int *sockfd){
 				free(recibido);
 				pthread_exit(&hiloRM);
 			} else {
-				// Caso en el que el cliente aborta.
+				/* Caso en el que el cliente aborta. */
 				break;
 			}
 		}
-		
+		/* Imprimimos el mensaje recibido del servidor */
 		printf("%s", recibido);
 	}
 	
@@ -189,14 +262,31 @@ void *recibeMensaje(int *sockfd){
 	pthread_exit(&hiloRM);
 }
 
-void copy(int sockfd) {
-	pthread_create(&hiloRC, NULL, (void *)recibeComando, &sockfd);
-	pthread_create(&hiloRM, NULL, (void *)recibeMensaje, &sockfd);
-	pthread_join(hiloRC, NULL);
+/**
+ * 
+ * Funcion encargada de crear dos hilos:
+ * * &hiloEC: Envia comandos al servidor.
+ * * &hiloRM Recibe mensajes del servidor. 
+ * 
+ * @param El numero del socket del cliente. 
+ * 
+ */
+void iniciarConcurrencia(int sockfd) {
+	pthread_create(&hiloEC, NULL, (void *)enviarComando, &sockfd);
+	pthread_create(&hiloRM, NULL, (void *)recibirMensaje, &sockfd);
+	pthread_join(hiloEC, NULL);
 	pthread_join(hiloRM, NULL);
 	printf("Hasta luego.\n");
 }
 
+/**
+ * Funcion principal del cchat, encargada de la
+ *	conexion del cliente al servidor. 
+ * 
+ * @param Cantidad de argumentos enviados.
+ * @param Argumentos enviados.
+ * 
+ */
 int main(int argc, char *argv[]) {
 	
 	int identidadValida = 0;
@@ -308,7 +398,7 @@ int main(int argc, char *argv[]) {
 	}
 	
   /* Copy input to the server. */
-	copy(sockfd);
+	iniciarConcurrencia(sockfd);
 	close(sockfd);
 	exit(EXIT_SUCCESS);
 }
