@@ -21,6 +21,8 @@
 #include <signal.h>
 #include "errors.h"
 #include <pthread.h>
+#include <netdb.h>
+#include <arpa/inet.h>
 
 #define BUFFERTAM 1024
 
@@ -315,6 +317,7 @@ int main(int argc, char *argv[]) {
 	char key;
 	int j = BUFFERTAM;
 	int lenNombre;
+	struct hostent *host;
 	
 	if (nombre == NULL) {
 		fatalerror("Error reservando memoria mediante calloc");
@@ -349,10 +352,14 @@ int main(int argc, char *argv[]) {
 		
 	signal(SIGINT, abortarSeguro);
 	
+	if ((host = gethostbyname(server)) == NULL) {
+			fatalerror("No se pudo encontrar la direccion IP.\n");
+	}
+	
 	/* Get the address of the server. */
 	bzero(&serveraddr, sizeof(serveraddr));
 	serveraddr.sin_family = AF_INET;
-	serveraddr.sin_addr.s_addr = inet_addr(server);
+	serveraddr.sin_addr = *((struct in_addr *)host->h_addr);
 	serveraddr.sin_port = htons(puerto);
 
 	/* Abriendo el socket. */
